@@ -1,41 +1,44 @@
 # Prospect Lens Console
 
-A single-page conversational console for finding, selecting, and enriching professional contacts. Chat naturally ("Find the CMO of Vercel"), pick a numbered candidate to enrich it with a verified email, and export everything as a Markdown table + downloadable CSV.
+A conversational console for finding, selecting, and enriching professional contacts, powered by the Arena Prospect Lens workflow API.
 
 ## Features
 
-- **POST /api/chat** — proxies `{ message, conversationId }` to the deployed Prospect Lens workflow and returns `{ reply }`
-- **GET /api/health** — liveness check
-- Per-conversation rate limiting (10 requests / minute)
-- Stable per-browser conversation UUID stored in a `Secure; SameSite=None` cookie so the workflow keeps selection/export state across every turn
-- Friendly rotating loader for long searches (60–90s), Markdown rendering (tables, bold, lists), CSV block with **Copy CSV** and **Download .csv**
-- Quick phrase chips, numbered-card quick picks (1 / 2 / 3 / All), particle-network ambient background
-- Never displays raw JSON, internal errors, or phone numbers
+- Chat interface with quick-pick candidate numbers and quick phrase chips
+- Streams the Arena workflow execute endpoint with the full `selectedOutputs` list (candidates, enrichment, exports)
+- Robust SSE/stream response parsing with prioritized workflow output keys
+- Phone number redaction on assistant replies
+- Best-effort chat logging to Postgres via Prisma
+- Arena email gate (iframe-safe cookies + access-denied page)
 
-## Tech stack
+## Tech Stack
 
-- Next.js 15 (App Router) + React 19 + TypeScript (strict)
-- Tailwind CSS v3 + custom design tokens (Poppins via next/font)
-- Prisma + Neon Postgres (best-effort chat transcript logging)
+- Next.js ^15.3.3 (App Router) + React ^19
+- Tailwind CSS v3 + Arena DS tokens
+- TypeScript (strict)
+- Prisma + PostgreSQL (Neon on Vercel)
 
-## Local setup
+## API Configuration
 
-```bash
-npm install
-cp .env.example .env   # fill in DATABASE_URL and PROSPECTLENS_API_KEY
-npm run dev
+The app calls the Prospect Lens workflow at:
+
+```
+POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute
 ```
 
-Open http://localhost:3000/?emailId=you@example.com (the Arena email gate requires an `emailId` query parameter on first load).
+with headers `X-API-Key` and `Content-Type: application/json`, body `{ input, stream: true, selectedOutputs: [...] }`.
 
-## Environment variables
+Defaults are baked in; override with environment variables:
 
-| Variable | Description |
-| --- | --- |
-| `DATABASE_URL` | Neon Postgres connection string (auto-injected on Vercel + Neon) |
-| `PROSPECTLENS_API_URL` | Prospect Lens workflow execute endpoint |
-| `PROSPECTLENS_API_KEY` | Workflow API key |
+- `PROSPECTLENS_API_URL` — workflow execute URL
+- `PROSPECTLENS_API_KEY` — workflow API key
+
+## Local Setup
+
+1. `npm install`
+2. Copy `.env.example` to `.env` and set `DATABASE_URL`
+3. `npm run dev`
 
 ## Deploy
 
-Deploy to Vercel with a connected Neon database. The build script runs `prisma generate && prisma db push && next build`. Set `PROSPECTLENS_API_URL` and `PROSPECTLENS_API_KEY` in the project environment.
+Vercel build runs `prisma generate && prisma db push && next build`. `DATABASE_URL` is injected by the Neon integration.
