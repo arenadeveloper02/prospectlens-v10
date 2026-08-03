@@ -1,6 +1,6 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-03T14:19:19.353Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-03T14:31:31.749Z.
 
 ## Overview
 
@@ -11,13 +11,11 @@ Prospect Lens Console — a conversational console for finding, selecting, and e
 
 ## Features
 
-- Chat console wired to the Prospect Lens Arena workflow API (streaming execute endpoint with full selectedOutputs list)
-- Configurable API URL and key via PROSPECTLENS_API_URL / PROSPECTLENS_API_KEY with baked-in defaults
-- Robust SSE/stream response parsing with prioritized workflow output keys
-- Phone number redaction on assistant replies
-- Best-effort chat message logging to Postgres via Prisma
+- Chat console wired to the Prospect Lens Arena workflow API (URL, API key, and all selectedOutputs configured)
+- Streaming (SSE) workflow response parsing with priority output extraction
+- Best-effort chat logging to Postgres via Prisma
 - Quick-pick number buttons and quick phrase chips
-- Arena email gate with access-denied page and iframe-safe cookies
+- Arena email gate with access-denied page
 
 ## Tech Stack
 
@@ -127,7 +125,7 @@ Prospect Lens Console — a conversational console for finding, selecting, and e
 
 ## Latest Change
 
-- **Updated at:** 2026-08-03T14:19:19.353Z
+- **Updated at:** 2026-08-03T14:31:31.749Z
 - **Request:** sk-sim-aqTqmPYK2VyFoSQGH5uHTOGsr-eiY2kD
 
 
