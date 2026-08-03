@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getWorkflowConfig, extractReply, redactPhones } from '@/lib/prospectlens';
+import {
+  getWorkflowConfig,
+  parseWorkflowResponse,
+  redactPhones,
+  SELECTED_OUTPUTS,
+} from '@/lib/prospectlens';
 import { ARENA_EMAIL_COOKIE_NAME } from '@/lib/arena-email-constants';
 
 export const dynamic = 'force-dynamic';
@@ -90,21 +95,17 @@ export async function POST(request: NextRequest) {
           message,
           conversationId,
           conversation_id: conversationId,
+          stream: true,
+          selectedOutputs: SELECTED_OUTPUTS,
         }),
         signal: controller.signal,
         cache: 'no-store',
       });
 
       const raw = await response.text();
-      let parsed: unknown = raw;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        // plain text reply — use as-is
-      }
 
       if (response.ok) {
-        reply = extractReply(parsed);
+        reply = parseWorkflowResponse(raw);
       }
     } catch {
       // network failure or timeout — fall through to friendly message

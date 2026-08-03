@@ -1,22 +1,22 @@
-# Repository Summary: Prospect Lens Console
+# Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-07-31T14:47:09.656Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-03T12:49:32.922Z.
 
 ## Overview
 
-A conversational console for finding, selecting, and enriching professional contacts via the Prospect Lens workflow API.
+Prospect Lens Console — a conversational console for finding, selecting, and enriching professional contacts, now wired to the updated Arena workflow API with streaming and selected outputs.
 
 **Repository:** `prospectlens-v10`  
-**File count:** 32
+**File count:** 31
 
 ## Features
 
-- Chat interface with Markdown rendering, candidate cards, and CSV export tools
-- POST /api/chat proxying the Prospect Lens workflow with stable per-session conversationId
-- Quick phrase chips and numbered quick-pick selection buttons
-- Per-conversation rate limiting and GET /api/health endpoint
-- Deep navy ambient design with particle network background
-- Arena email gating with access-denied page and iframe-safe headers
+- Conversational prospect search chat UI
+- Updated Arena workflow endpoint and API key
+- Streaming (SSE) workflow responses with selectedOutputs parsing
+- Quick-pick candidate selection and quick phrase chips
+- Server-side chat logging via Prisma (best-effort)
+- Phone number redaction on assistant replies
 
 ## Tech Stack
 
@@ -28,7 +28,6 @@ A conversational console for finding, selecting, and enriching professional cont
 
 ## Infrastructure
 
-- **Neon project ID:** `royal-tree-79627436` — managed by Sim Development; do not delete or replace
 - **DATABASE_URL:** set on Vercel when Neon is connected — do not commit real credentials
 
 ## Routes & Pages
@@ -78,7 +77,6 @@ A conversational console for finding, selecting, and enriching professional cont
 ### Config
 
 - `.env.example`
-- `.gitignore`
 - `middleware.ts`
 - `next-env.d.ts`
 - `next.config.ts`
@@ -95,7 +93,6 @@ A conversational console for finding, selecting, and enriching professional cont
 ## Complete File Index
 
 - `.env.example`
-- `.gitignore`
 - `README.md`
 - `REPO_SUMMARY.md`
 - `app/access-denied/page.tsx`
@@ -129,31 +126,15 @@ A conversational console for finding, selecting, and enriching professional cont
 
 ## Latest Change
 
-- **Updated at:** 2026-07-31T14:47:09.656Z
-- **Request:** Build a Node.js + Express chat web app called "Prospect Lens Console" — a single-page conversational interface for finding, selecting, and enriching professional contacts.
+- **Updated at:** 2026-08-03T12:49:32.922Z
+- **Request:** sk-sim-aqTqmPYK2VyFoSQGH5uHTOGsr-eiY2kD
 
-Backend (Node.js / Express)
-Single endpoint POST /api/chat that accepts { message, conversationId } and calls the deployed Prospect Lens workflow API, forwarding message as the workflow input and passing a stable conversationId (generate a UUID per browser session and persist it in localStorage — this is critical: the flow keys all state on conversation_id, so the same id must be sent every turn for selection and export to work).
-Read the workflow API key and endpoint URL from env vars (PROSPECTLENS_API_URL, PROSPECTLENS_API_KEY); never hardcode them, never change them also.
-URL;- https://agent.thearena.ai/api/workflows/93554407-b92d-4ec6-ba3c-be07be4c153b/execute
-Key:- sk-sim-W5XWd6ZvGvHrB4qoYLMw_JCEgy_i6YPr
-The workflow returns a single chat-style text reply (numbered candidate cards on a search turn, an enriched contact with email on a selection turn, or a Markdown+CSV table on export). Return that reply as { reply }. Do not attempt to parse or re-render internal JSON — the flow already emits clean plain text/Markdown.
-Add GET /api/health and basic per-session rate limiting.
-Frontend (chat UX)
-A clean, modern chat interface: message bubbles, streaming-style typing indicator while the workflow runs (searches can take 60–90s — show a friendly "Searching public professional sources…" loader, never a spinner that looks stuck).
-Render the assistant's Markdown (tables, bold, lists) properly — the export turn returns a Markdown table + a fenced CSV block; show the table nicely and give the CSV block a one-click "Copy CSV" and "Download .csv" button.
-Pre-typed quick phrases as clickable chips above the input, e.g.: "Find the CMO of Vercel", "VP of Sales at Notion", "Show all my contacts", "Head of Marketing at Stripe". Clicking a chip sends it as the message.
-Selection helper: when the last assistant message contained numbered cards, show quick-pick buttons 1 2 3 All that send that number as the next message (the flow treats a lone number as a pick).
-Natural language: the user can type any sentence — the workflow's parser handles it. Do not constrain input to a form.
-Card readability: when the reply is a numbered candidate list, render each as a clean card (name, title, company, location, confidence). Keep it scannable.
-Visual design (must match house style)
-Deep navy/black background (not pure black), with subtle radial gradients and soft ambient glows in blue, purple, and teal.
-A very low-opacity particle/network pattern behind the chat to give an "intelligence platform" feel.
-Clean sans-serif, generous spacing, rounded cards, smooth transitions.
-Hard rules
-Never display raw JSON anywhere in the UI — always render the assistant's text/Markdown.
-Never surface internal tool/provider names, errors, IDs, or stack traces to the user.
-Never show phone numbers.
-A contact with no email is still shown (mark "email not found"), never dropped.
-Deliverables
-server.js, public/index.html, public/app.js, public/styles.css, package.json, .env.example (PROSPECTLENS_API_URL, PROSPECTLENS_API_KEY), and a README.md with run instructions.
+
+curl -X POST \
+  -H "X-API-Key: $SIM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"input":"example","stream":true,"selectedOutputs":["loadcandidates.success","loadcandidates.rows","serializecandidates.result","serializeenriched.result","saveenriched.success","saveenriched.row","loadallcontacts.success","loadallcontacts.rows","savecandidates.success","savecandidates.row","identify.candidates","identify.message","apollocontactfinder.content","presentcards.content","formatexport.content"]}' \
+  https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute
+
+
+These are the api details, add all
