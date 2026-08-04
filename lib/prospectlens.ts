@@ -34,81 +34,67 @@ export function getWorkflowConfig(): WorkflowConfig {
   };
 }
 
-const PRIORITY_OUTPUT_KEYS = [
+/**
+ * The ONLY workflow outputs that may ever be shown to the user, in strict
+ * priority order. Everything else (serializecandidates.result,
+ * serializeenriched.result, generic reply/content/result keys, streamed
+ * chunk text, etc.) is internal workflow state and must NEVER surface in
+ * the chat. If none of these fields are present, extractReply returns null
+ * and the API route shows its friendly failure copy instead.
+ */
+const ALLOWED_OUTPUT_KEYS = [
   'presentcards.content',
   'formatexport.content',
   'apollocontactfinder.content',
   'identify.message',
-  'serializeenriched.result',
-  'serializecandidates.result',
-];
+] as const;
 
-const REPLY_KEYS = [
-  'reply',
-  'content',
-  'text',
-  'message',
-  'output',
-  'result',
-  'response',
-  'answer',
-  'chunk',
-  'data',
-];
-
-export function extractReply(value: unknown, depth = 0): string | null {
+function findAllowedKey(value: unknown, key: string, depth = 0): string | null {
   if (depth > 6) return null;
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (!trimmed) return null;
     if (
       (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
       (trimmed.startsWith('[') && trimmed.endsWith(']'))
     ) {
       try {
         const parsed: unknown = JSON.parse(trimmed);
-        const nested = extractReply(parsed, depth + 1);
-        if (nested) return nested;
+        return findAllowedKey(parsed, key, depth + 1);
       } catch {
-        // not JSON — treat as plain text
+        return null;
       }
     }
-    return trimmed;
+    // Plain strings are never returned on their own — only whitelisted fields are.
+    return null;
   }
   if (Array.isArray(value)) {
     for (const item of value) {
-      const found = extractReply(item, depth + 1);
+      const found = findAllowedKey(item, key, depth + 1);
       if (found) return found;
     }
     return null;
   }
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>;
-    for (const key of PRIORITY_OUTPUT_KEYS) {
-      if (key in record) {
-        const found = extractReply(record[key], depth + 1);
-        if (found) return found;
+    if (key in record) {
+      const raw = record[key];
+      if (typeof raw === 'string' && raw.trim()) {
+        return raw.trim();
       }
     }
-    for (const key of Object.keys(record)) {
-      if (
-        key.endsWith('.content') ||
-        key.endsWith('.message') ||
-        key.endsWith('.result') ||
-        key.endsWith('.text') ||
-        key.endsWith('.reply')
-      ) {
-        const found = extractReply(record[key], depth + 1);
-        if (found) return found;
-      }
-    }
-    for (const key of REPLY_KEYS) {
-      if (key in record) {
-        const found = extractReply(record[key], depth + 1);
-        if (found) return found;
-      }
+    for (const child of Object.values(record)) {
+      const found = findAllowedKey(child, key, depth + 1);
+      if (found) return found;
     }
     return null;
+  }
+  return null;
+}
+
+export function extractReply(value: unknown): string | null {
+  for (const key of ALLOWED_OUTPUT_KEYS) {
+    const found = findAllowedKey(value, key);
+    if (found) return found;
   }
   return null;
 }
@@ -119,37 +105,47 @@ export function parseWorkflowResponse(raw: string): string | null {
 
   if (trimmed.includes('data:')) {
     const chunks: unknown[] = [];
-    let streamedText = '';
     for (const line of trimmed.split(/\r?\n/)) {
       const clean = line.trim();
       if (!clean.startsWith('data:')) continue;
       const payload = clean.slice(5).trim();
       if (!payload || payload === '[DONE]') continue;
       try {
-        const parsed: unknown = JSON.parse(payload);
-        chunks.push(parsed);
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          const record = parsed as Record<string, unknown>;
-          if (typeof record.chunk === 'string') {
-            streamedText += record.chunk;
-          } else if (typeof record.delta === 'string') {
-            streamedText += record.delta;
-          }
-        }
+        chunks.push(JSON.parse(payload) as unknown);
       } catch {
-        streamedText += payload;
+        // Non-JSON stream noise is internal — never shown to the user.
       }
     }
-
-    for (let i = chunks.length - 1; i >= 0; i--) {
-      const found = extractReply(chunks[i]);
-      if (found) return found;
-    }
-    if (streamedText.trim()) return streamedText.trim();
-    return null;
+    // Prefer the most recent chunk that carries a whitelisted output field.
+    return extractReply(chunks.slice().reverse());
   }
 
   return extractReply(trimmed);
+}
+
+/**
+ * Defense in depth: even a whitelisted output field could, in a bad workflow
+ * run, contain raw JSON or internal debug state. Any reply that parses as
+ * JSON or contains known internal field names is treated as unusable so the
+ * API route falls back to its friendly failure copy — internal workflow
+ * state must never leak into the chat.
+ */
+export function looksLikeInternalPayload(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return true;
+  if (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  ) {
+    try {
+      JSON.parse(trimmed);
+      return true;
+    } catch {
+      // Not valid JSON — fall through to marker checks.
+    }
+  }
+  const markers = ['"candidates":', '"conversation_id":', '"enrich_status":', '"selected_ids":'];
+  return markers.some((marker) => trimmed.includes(marker));
 }
 
 export function redactPhones(text: string): string {

@@ -202,7 +202,13 @@ function renderTextBlock(body: string, keyPrefix: string): ReactNode[] {
 
 function looksLikeCsv(body: string): boolean {
   const lines = body.split('\n').filter((l) => l.trim());
-  return lines.length >= 2 && lines.every((l) => l.includes(','));
+  if (lines.length < 2) return false;
+  // Column-count consistency check: every line must have the SAME number of
+  // commas as the first line (and at least one), so ordinary prose with a few
+  // commas never false-positives as a CSV export block.
+  const firstCount = (lines[0] ?? '').split(',').length - 1;
+  if (firstCount < 1) return false;
+  return lines.every((l) => l.split(',').length - 1 === firstCount);
 }
 
 function CsvBlock({ csv }: { csv: string }) {

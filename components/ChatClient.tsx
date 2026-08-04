@@ -43,6 +43,25 @@ function getOrCreateConversationId(): string {
   return id;
 }
 
+function formatRelativeTime(value: string | Date, now: number): string {
+  const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  if (Number.isNaN(time)) return '';
+  const diff = Math.max(0, now - time);
+  if (diff < 45_000) return 'just now';
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(time).toLocaleDateString();
+}
+
+/** Matches fallback/notice copy sent by the API route or local error paths. */
+function isFallbackReply(text: string): boolean {
+  return /try again in a moment|shorten it and try again|catch up, then try again|start searching/i.test(
+    text,
+  );
+}
+
 export default function ChatClient() {
   const [messages, setMessages] = useState<UiMessage[]>([
     { id: 'welcome', role: 'assistant', content: WELCOME, createdAt: '' },
@@ -50,10 +69,16 @@ export default function ChatClient() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [conversationId, setConversationId] = useState('');
+  const [now, setNow] = useState<number>(() => Date.now());
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setConversationId(getOrCreateConversationId());
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -89,9 +114,16 @@ export default function ChatClient() {
           data && typeof data.reply === 'string' && data.reply.trim()
             ? data.reply
             : "I couldn't complete that request. Please try again in a moment.";
+        const isNotice = !response.ok || isFallbackReply(reply);
         setMessages((prev) => [
           ...prev,
-          { id: generateId(), role: 'assistant', content: reply, createdAt: new Date().toISOString() },
+          {
+            id: generateId(),
+            role: 'assistant',
+            content: reply,
+            createdAt: new Date().toISOString(),
+            isNotice,
+          },
         ]);
       } catch {
         setMessages((prev) => [
@@ -101,6 +133,7 @@ export default function ChatClient() {
             role: 'assistant',
             content: 'I had trouble reaching the search service. Please try again in a moment.',
             createdAt: new Date().toISOString(),
+            isNotice: true,
           },
         ]);
       } finally {
@@ -112,7 +145,16 @@ export default function ChatClient() {
 
   const pickNumbers = useMemo(() => {
     const last = messages[messages.length - 1];
-    if (!last || last.role !== 'assistant' || last.id === 'welcome') return [];
+    if (!last || last.role !== 'assistant' || last.id === 'welcome' || last.isNotice) return [];
+
+    // Require a second, independent signal beyond mere numbering so plain
+    // numbered instructions never trigger quick-pick buttons: the message must
+    // also mention company/title context or explicitly ask for a number.
+    const hasCandidateContext =
+      /\b(company|title)\b/i.test(last.content) ||
+      /reply with (?:the )?number|which one/i.test(last.content);
+    if (!hasCandidateContext) return [];
+
     const found = new Set<number>();
     const regex = /^\s{0,3}(\d{1,2})[.)]\s+/gm;
     let match: RegExpExecArray | null;
@@ -144,13 +186,34 @@ export default function ChatClient() {
       </header>
 
       <div className="messages">
-        {messages.map((msg) => (
-          <div key={msg.id} className={msg.role === 'user' ? 'row row-user' : 'row row-assistant'}>
-            <div className={msg.role === 'user' ? 'bubble bubble-user' : 'bubble bubble-assistant'}>
-              {msg.role === 'assistant' ? <Markdown content={msg.content} /> : <span>{msg.content}</span>}
+        {messages.map((msg) => {
+          const isUser = msg.role === 'user';
+          const isWelcome = msg.id === 'welcome';
+          const bubbleClass = isUser
+            ? 'bubble bubble-user'
+            : `bubble bubble-assistant${isWelcome ? ' bubble-welcome' : ''}${msg.isNotice ? ' bubble-notice' : ''}`;
+          return (
+            <div key={msg.id} className={isUser ? 'row row-user' : 'row row-assistant'}>
+              <div className="msg-group">
+                <div className="msg-meta">
+                  <span className="msg-avatar" aria-hidden="true" />
+                  <span className="msg-role">{isUser ? 'You' : 'Prospect Lens'}</span>
+                  {msg.isNotice && <span className="msg-notice-tag">didn&apos;t fully complete</span>}
+                  {msg.createdAt && (
+                    <span className="msg-time">{formatRelativeTime(msg.createdAt, now)}</span>
+                  )}
+                </div>
+                <div className={bubbleClass}>
+                  {msg.role === 'assistant' ? (
+                    <Markdown content={msg.content} />
+                  ) : (
+                    <span>{msg.content}</span>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {sending && (
           <div className="row row-assistant">
             <TypingIndicator />

@@ -5,6 +5,8 @@ export interface UiMessage {
   role: ChatRole;
   content: string;
   createdAt: string;
+  /** True when this assistant reply is a fallback/notice (request didn't fully complete). */
+  isNotice?: boolean;
 }
 
 export interface ChatApiResponse {

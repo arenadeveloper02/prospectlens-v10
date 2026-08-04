@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
   getWorkflowConfig,
+  looksLikeInternalPayload,
   parseWorkflowResponse,
   redactPhones,
   SELECTED_OUTPUTS,
@@ -113,7 +114,14 @@ export async function POST(request: NextRequest) {
       clearTimeout(timeout);
     }
 
-    const safeReply = redactPhones(reply && reply.trim() ? reply.trim() : FRIENDLY_FAILURE);
+    // Defense in depth: even after whitelist extraction, never let anything
+    // that still looks like raw JSON or internal workflow state (candidates
+    // payloads, conversation ids, enrich status, selection state) reach the
+    // user. Treat it exactly like a missing reply and show the friendly copy.
+    const candidate = reply && reply.trim() ? reply.trim() : null;
+    const safeReply = redactPhones(
+      candidate && !looksLikeInternalPayload(candidate) ? candidate : FRIENDLY_FAILURE,
+    );
 
     try {
       await prisma.chatMessage.create({
