@@ -25,7 +25,9 @@ export function getWorkflowConfig(): WorkflowConfig {
 /**
  * Structured contract returned by the workflow:
  *   { reply: string, mode?: string, cardCount?: number }
- * usually wrapped as { result: { ... } } or { output: { ... } }.
+ * or, on search turns, a structured object like
+ *   { mode, selected_ids, candidates, message }
+ * usually wrapped as { result: { ... } }, { output: { ... } }, or { data: { ... } }.
  */
 export interface WorkflowResult {
   reply: string;
@@ -47,20 +49,29 @@ function asText(value: unknown): string | undefined {
 /**
  * The Arena workflow is multi-branch: depending on the turn it ends at
  * Present Cards (search), Apollo Contact Finder (selection/enrich), or
- * Format Export (export). Each agent returns its text in a `content` field
- * and the execute API wraps it differently per branch. Return the FIRST
- * text found under any of the known shapes:
- *   output.content · data.output.content · output (string) · content ·
- *   result.content · data.content · result.reply · reply · bare string.
+ * Format Export (export). Each terminal block returns its visible text in
+ * a `content` field — but the search branch also carries a structured
+ * object { mode, selected_ids, candidates, message } where the visible text
+ * lives under `message`. The execute API wraps it differently per branch.
+ * Return the FIRST text found under any of the known shapes:
+ *   output.content · data.output.content · output.message ·
+ *   data.output.message · output (string) · content · message ·
+ *   result.content · result.message · data.content · data.message ·
+ *   result.reply · reply · bare string.
  */
 export function pickWorkflowMessage(o: unknown): string | undefined {
   return (
     asText(getField(getField(o, 'output'), 'content')) ??
     asText(getField(getField(getField(o, 'data'), 'output'), 'content')) ??
+    asText(getField(getField(o, 'output'), 'message')) ??
+    asText(getField(getField(getField(o, 'data'), 'output'), 'message')) ??
     asText(getField(o, 'output')) ??
     asText(getField(o, 'content')) ??
+    asText(getField(o, 'message')) ??
     asText(getField(getField(o, 'result'), 'content')) ??
+    asText(getField(getField(o, 'result'), 'message')) ??
     asText(getField(getField(o, 'data'), 'content')) ??
+    asText(getField(getField(o, 'data'), 'message')) ??
     asText(getField(getField(o, 'result'), 'reply')) ??
     asText(getField(o, 'reply')) ??
     asText(o)
@@ -68,13 +79,16 @@ export function pickWorkflowMessage(o: unknown): string | undefined {
 }
 
 /**
- * Recursively extracts the user-facing `reply` string from the workflow
- * response. Priority: an object's own `reply` field, then the well-known
- * container keys (result, output, content, data), then plain-string
- * output/content fields (only when they don't look like internal state),
- * then a generic depth-limited scan. JSON embedded inside strings is
- * parsed and searched too. Returns null when nothing user-facing is found
- * so the API route can show its friendly failure copy instead.
+ * Recursively extracts the user-facing text from the workflow response.
+ * Priority: an object's own `reply` field, then its own `content` and
+ * `message` string fields (the structured search-turn object
+ * { mode, candidates, message } keeps its visible text under `message`),
+ * then the well-known container keys (result, output, content, data,
+ * message), then plain-string output/content/message fields (only when they
+ * don't look like internal state), then a generic depth-limited scan. JSON
+ * embedded inside strings is parsed and searched too. Returns null when
+ * nothing user-facing is found so the API route can show its friendly
+ * failure copy instead.
  */
 function extractReplyFromValue(value: unknown, depth = 0): string | null {
   if (depth > 6 || value === null || value === undefined) return null;
@@ -93,7 +107,7 @@ function extractReplyFromValue(value: unknown, depth = 0): string | null {
       }
     }
     // Bare strings are never returned on their own at this level — only
-    // whitelisted fields (reply / output / content) may surface text.
+    // whitelisted fields (reply / output / content / message) may surface text.
     return null;
   }
 
@@ -120,16 +134,23 @@ function extractReplyFromValue(value: unknown, depth = 0): string | null {
       return ownContent.trim();
     }
 
+    // Structured search-turn object: { mode, selected_ids, candidates, message }
+    // — the user-facing text is the `message` string.
+    const ownMessage = record['message'];
+    if (typeof ownMessage === 'string' && ownMessage.trim() && !looksLikeInternalPayload(ownMessage)) {
+      return ownMessage.trim();
+    }
+
     // Well-known containers, in priority order.
-    for (const key of ['result', 'output', 'content', 'data'] as const) {
+    for (const key of ['result', 'output', 'content', 'message', 'data'] as const) {
       if (key in record) {
         const found = extractReplyFromValue(record[key], depth + 1);
         if (found) return found;
       }
     }
 
-    // Plain-string output/content fallbacks (data.output ?? data.content).
-    for (const key of ['output', 'content'] as const) {
+    // Plain-string fallbacks (data.output ?? data.content ?? data.message).
+    for (const key of ['output', 'content', 'message'] as const) {
       const raw = record[key];
       if (typeof raw === 'string' && raw.trim() && !looksLikeInternalPayload(raw)) {
         return raw.trim();
@@ -179,8 +200,9 @@ export function parseWorkflowResponse(raw: string): string | null {
   }
 
   // Standard path: plain JSON body. Try the explicit multi-branch pick first
-  // (output.content / data.output.content / content / result.content / …),
-  // then fall back to the recursive extractor for anything exotic.
+  // (output.content / output.message / data.output.content / content /
+  // message / result.content / …), then fall back to the recursive extractor
+  // for anything exotic (including the structured search-turn object).
   try {
     const parsed: unknown = JSON.parse(trimmed);
     const picked = pickWorkflowMessage(parsed);

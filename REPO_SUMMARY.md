@@ -1,6 +1,6 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T11:26:58.023Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T11:39:16.558Z.
 
 ## Overview
 
@@ -11,12 +11,12 @@ Prospect Lens Console — conversational console for finding, selecting, and enr
 
 ## Features
 
-- Defensive multi-branch workflow response parsing (output.content, data.output.content, output, content, result.content, data.content, reply)
-- Raw upstream payload logging (first 1000 chars) on any failure for Vercel log debugging
-- maxDuration 60 on every API route plus vercel.json function budget
-- Exact camelCase { input, conversationId } request contract with x-api-key header and stable per-browser-session conversationId
-- Debuggable 502 upstream errors surfaced in the chat instead of a generic fallback
-- Markdown rendering of card, enrich, and export (table + fenced CSV) turns
+- Chat console with Markdown rendering (tables, candidate cards, CSV export blocks)
+- Robust multi-branch workflow response parsing including structured { mode, candidates, message } payloads
+- 60s function budget with 55s outbound abort so real 20–50s searches never die to Vercel timeouts
+- Stable per-browser-session conversationId reused across search → pick → enrich → export
+- Debuggable upstream failures: raw payload logged (first 1500 chars) and real status surfaced in the UI
+- Arena email gate with access-denied page and cross-origin iframe support
 
 ## Tech Stack
 
@@ -132,52 +132,56 @@ Prospect Lens Console — conversational console for finding, selecting, and enr
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T11:26:58.023Z
-- **Request:** Fix Prospect Lens v10 so it reliably reads and renders the workflow response.
+- **Updated at:** 2026-08-05T11:39:16.558Z
+- **Request:** Fix Prospect Lens v10 frontend: response parsing + function timeout. Do NOT change the workflow.
 
-Background (do not change the workflow — only the frontend): The Arena workflow is multi-branch. Depending on the turn it ends at one of three agents, each returning its text in a content field: Present Cards (search), Apollo Contact Finder (selection/enrich), or Format Export (export). The execute API wraps that. The current app assumes one fixed response path, so on some turns it shows "The search service responded, but I could not read a usable answer from it." Other turns show "I couldn't complete that search just now" — a function timeout.
+Context: The Arena workflow ends at one of several blocks depending on the turn. The final visible text lives under the terminal block's content, but the search branch also carries a structured object { mode, selected_ids, candidates, message }. The app currently (a) times out on real searches and (b) can't locate the text when the payload is an object, so it shows "responded (HTTP 200) but I could not find a readable message" or "I couldn't complete that search just now."
 
-Environment variables (set in Vercel → Settings → Environment Variables; never hard-code):
+Env vars (Vercel → Settings → Environment Variables; never hard-code):
 
 PUREMUON_URL = https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute
-PUREMUON_API_KEY = <PUREMUON_API_KEY> (paste the real workspace key in Vercel only)
-Tasks:
+PUREMUON_API_KEY = <PUREMUON_API_KEY>
+Tasks
 
-In every app/api/**/route.ts, after await fetch(PUREMUON_URL, ...), parse the response defensively — the agent text can arrive under any of these, so return the first that exists:
+Timeout (do this first — it's the main cause of the "couldn't complete" errors). In every app/api/**/route.ts add export const maxDuration = 60; and set maxDuration: 60 in vercel.json. Give the outbound fetch an AbortController timeout of ~55s. A real search runs multiple upstream lookups and legitimately takes 20–50s.
+Parse the payload robustly. The agent text can arrive as a string OR inside a structured object. After await fetch(...):
+ts
+
 const json = await res.json().catch(() => null);
-const pick = (o: any): string | undefined =>
-o?.output?.content ??
-o?.data?.output?.content ??
-(typeof o?.output === "string" ? o.output : undefined) ??
-o?.content ??
-o?.result?.content ??
-o?.data?.content ??
-(typeof o === "string" ? o : undefined);
-const message = pick(json);
+
+const pickString = (o: any): string | undefined => {
+if (o == null) return undefined;
+if (typeof o === "string") return o;
+// common wrappers
+const cands = [o.output, o.data?.output, o.result, o.data];
+for (const c of cands) {
+if (typeof c === "string") return c;
+if (c && typeof c.content === "string") return c.content;
+if (c && typeof c.message === "string") return c.message;
+}
+if (typeof o.content === "string") return o.content;
+// structured search-turn object: { mode, candidates, message }
+if (typeof o.message === "string") return o.message;
+const deepMsg = o.output?.message ?? o.data?.output?.message;
+if (typeof deepMsg === "string") return deepMsg;
+return undefined;
+};
+
+const message = pickString(json);
 if (!res.ok || message == null) {
-console.error("PL upstream", res.status, JSON.stringify(json)?.slice(0, 1000));
+console.error("PL upstream", res.status, JSON.stringify(json)?.slice(0, 1500));
 return NextResponse.json({ error: "upstream_unreadable", status: res.status }, { status: 502 });
 }
 return NextResponse.json({ message });
+Log the raw upstream JSON (first ~1500 chars) on any failure so the exact wrapper key is visible in Vercel logs.
+Request body stays exactly { "input": "<user msg>", "conversationId": "<stable-per-session-id>" } with the key in the x-api-key header. Generate conversationId once per browser session and reuse it across search → pick a number → enrich → export. Do NOT rename it (conversation_id/sessionId) or derive it from an email that can be blank/shared — the workflow keys saved candidates on it, so an unstable value silently breaks number-picking and export.
+Render the returned message as Markdown (export returns a Markdown table + fenced CSV). On 502/error, show the real status, not the generic fallback.
+Commit, push, redeploy (env changes require a redeploy).
+Acceptance test (replace placeholder locally; confirm it returns text, not a timeout):
 
+bash
 
-Log the raw upstream JSON (first ~1000 chars) on any failure so the exact key is visible in Vercel logs — remove the guesswork about which branch ran.
-Set export const maxDuration = 60; on every API route (and maxDuration: 60 in vercel.json). A real search takes 20–50s; the "couldn't complete" message is a Vercel function timeout.
-Send the request body EXACTLY as (camelCase keys, unchanged):
-
-{ "input": "<user message>", "conversationId": "<stable-per-session-id>" }
-
-
-with the key in the x-api-key header. Generate conversationId once per browser session and reuse it across every turn (search → pick a number → enrich → export). Do NOT rename it (conversation_id, sessionId) and do NOT derive it from the user's email in a way that can be blank or shared — the workflow keys saved candidates on it, so an unstable value silently breaks number-picking and export even though searches still return.
-
-Render the returned message string as Markdown (the export turn returns a Markdown table + a fenced CSV block; the card turns return formatted text). On a 502/error, surface the real status instead of the generic fallback so failures are debuggable.
-Commit, push, redeploy (env-var changes require a redeploy).
-Acceptance test (replace the placeholder with the real key locally; confirm which key holds the text and that pick() returns it):
-
-curl -s -X POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute \
- -H "Content-Type: application/json" \
- -H "x-api-key: <PUREMUON_API_KEY>" \
- -d '{"input":"Find the CMO of Vercel","conversationId":"test-123"}' | head -c 1200
-
-
-Then, in the SAME conversationId, {"input":"1","conversationId":"test-123"} should enrich, and {"input":"show all my contacts","conversationId":"test-123"} should return the table.
+curl -s --max-time 70 -X POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute \
+ -H "Content-Type: application/json" -H "x-api-key: <PUREMUON_API_KEY>" \
+ -d '{"input":"Find the CMO of Vercel","conversationId":"test-123"}' | head -c 1500
+Then, same conversationId: {"input":"1",...} should enrich, {"input":"show all my contacts",...} should return the table.
