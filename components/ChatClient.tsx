@@ -33,6 +33,12 @@ function generateId(): string {
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * Stable per-browser-session conversation id, generated ONCE and reused for
+ * every turn (search → pick a number → enrich → export). The workflow keys
+ * saved candidates on this value, so it must never change mid-conversation
+ * and is never derived from the user's email.
+ */
 function getOrCreateConversationId(): string {
   const match = document.cookie.match(/(?:^|;\s*)pl_conversation_id=([^;]+)/);
   if (match && match[1]) {
@@ -109,12 +115,24 @@ export default function ChatClient() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message, conversationId }),
         });
-        const data = (await response.json().catch(() => null)) as { reply?: unknown } | null;
+        const data = (await response.json().catch(() => null)) as {
+          reply?: unknown;
+          error?: unknown;
+          status?: unknown;
+        } | null;
+        const replyText =
+          data && typeof data.reply === 'string' && data.reply.trim() ? data.reply : null;
+        const errorCode = data && typeof data.error === 'string' ? data.error : null;
+        const upstreamStatus =
+          data && typeof data.status === 'number' && data.status > 0 ? data.status : null;
+        // Surface the real upstream failure instead of a generic fallback so
+        // problems are debuggable straight from the chat.
         const reply =
-          data && typeof data.reply === 'string' && data.reply.trim()
-            ? data.reply
-            : "I couldn't complete that request. Please try again in a moment.";
-        const isNotice = !response.ok || isFallbackReply(reply);
+          replyText ??
+          (errorCode
+            ? `The search didn't complete (${errorCode}${upstreamStatus ? `, upstream HTTP ${upstreamStatus}` : ''}). Please try again in a moment.`
+            : "I couldn't complete that request. Please try again in a moment.");
+        const isNotice = !response.ok || Boolean(errorCode) || isFallbackReply(reply);
         setMessages((prev) => [
           ...prev,
           {

@@ -11,8 +11,9 @@ import {
 import { ARENA_EMAIL_COOKIE_NAME } from '@/lib/arena-email-constants';
 
 export const dynamic = 'force-dynamic';
-// Real searches can take 20–50s; keep this well above 60s so runs never time out.
-export const maxDuration = 300;
+// A real search takes 20–50s. Give the function a 60s budget (also pinned in
+// vercel.json) so the workflow run never dies to a Vercel function timeout.
+export const maxDuration = 60;
 
 const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 10;
@@ -82,16 +83,19 @@ export async function POST(request: NextRequest) {
 
     const { url, key } = getWorkflowConfig();
     const controller = new AbortController();
-    // Workflow contract: allow up to 120s for the run to complete.
-    const timeout = setTimeout(() => controller.abort(), 120_000);
+    // Abort just under the 60s function budget so we always return our own
+    // JSON response instead of hitting a hard Vercel timeout.
+    const timeout = setTimeout(() => controller.abort(), 55_000);
 
     let reply: string | null = null;
     let errorNotice: string | null = null;
+    let upstreamError: string | null = null;
+    let upstreamStatus = 0;
     try {
-      // Workflow contract: POST { input, conversationId } (exact camelCase keys)
-      // with BOTH x-api-key and Authorization: Bearer headers. The JSON body's
-      // result is { reply, mode, cardCount } (possibly under data.result /
-      // data.output / data.content).
+      // Workflow contract — send the body EXACTLY as camelCase
+      // { input, conversationId } with the key in the x-api-key header.
+      // conversationId is stable per browser session; the workflow keys saved
+      // candidates on it, so it must never be renamed or regenerated per turn.
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -104,35 +108,46 @@ export async function POST(request: NextRequest) {
         cache: 'no-store',
       });
 
+      upstreamStatus = response.status;
       const raw = await response.text();
 
       if (response.ok) {
+        // Multi-branch parse: Present Cards / Apollo Contact Finder /
+        // Format Export each return text under a different key —
+        // parseWorkflowResponse tries output.content, data.output.content,
+        // output, content, result.content, data.content, reply, and SSE.
         reply = parseWorkflowResponse(raw);
         if (!reply) {
-          errorNotice =
-            'The search service responded, but I could not read a usable answer from it. Please try again in a moment.';
+          // Log the raw upstream JSON so the exact key is visible in Vercel logs.
+          console.error('PL upstream unreadable', upstreamStatus, raw.slice(0, 1000));
+          upstreamError = 'upstream_unreadable';
+          errorNotice = `The search service responded (HTTP ${upstreamStatus}), but I could not find a readable message in its payload. Please try again in a moment.`;
         }
       } else {
-        // Surface the actual error (status + detail) so failures are debuggable
-        // instead of hiding everything behind the generic fallback copy.
-        errorNotice = describeWorkflowError(response.status, raw);
+        console.error('PL upstream error', upstreamStatus, raw.slice(0, 1000));
+        upstreamError = 'upstream_error';
+        errorNotice = describeWorkflowError(upstreamStatus, raw);
       }
-    } catch {
+    } catch (err) {
+      console.error('PL upstream fetch failed', err instanceof Error ? err.message : String(err));
+      upstreamError = 'upstream_unreachable';
       errorNotice =
         'I could not reach the search service (network error or the request timed out). Please try again in a moment.';
     } finally {
       clearTimeout(timeout);
     }
 
-    // Defense in depth: even after extraction, never let anything that still
-    // looks like raw JSON or internal workflow state (candidates payloads,
-    // conversation ids, enrich status, selection state) reach the user.
+    // Defense in depth: never let anything that still looks like raw JSON or
+    // internal workflow state reach the user.
     const candidate = reply && reply.trim() ? reply.trim() : null;
-    const safeReply = redactPhones(
-      candidate && !looksLikeInternalPayload(candidate)
-        ? candidate
-        : errorNotice ?? FRIENDLY_FAILURE,
-    );
+    const usable = candidate && !looksLikeInternalPayload(candidate) ? candidate : null;
+    if (candidate && !usable && !upstreamError) {
+      console.error('PL upstream internal-state reply', upstreamStatus, candidate.slice(0, 1000));
+      upstreamError = 'upstream_unreadable';
+      errorNotice = `The search service responded (HTTP ${upstreamStatus || 200}), but the payload contained internal state rather than a message. Please try again in a moment.`;
+    }
+
+    const safeReply = redactPhones(usable ?? errorNotice ?? FRIENDLY_FAILURE);
 
     try {
       await prisma.chatMessage.create({
@@ -140,6 +155,15 @@ export async function POST(request: NextRequest) {
       });
     } catch {
       // logging is best-effort; never block the chat
+    }
+
+    if (!usable && upstreamError) {
+      // Surface the real upstream status so failures are debuggable in the UI
+      // and in Vercel logs instead of hiding behind generic fallback copy.
+      return NextResponse.json(
+        { reply: safeReply, error: upstreamError, status: upstreamStatus },
+        { status: 502 },
+      );
     }
 
     return NextResponse.json({ reply: safeReply });

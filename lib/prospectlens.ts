@@ -9,7 +9,7 @@ export interface WorkflowConfig {
 
 /**
  * Resolves the workflow execute endpoint and API key.
- * Primary env vars: PUREMUON_URL / PUREMUON_API_KEY.
+ * Primary env vars: PUREMUON_URL / PUREMUON_API_KEY (set in Vercel).
  * Legacy fallbacks: PROSPECTLENS_API_URL / PROSPECTLENS_API_KEY.
  * Hard defaults point at the healthy 65d2b97b-… workflow.
  */
@@ -31,6 +31,40 @@ export interface WorkflowResult {
   reply: string;
   mode?: string;
   cardCount?: number;
+}
+
+function getField(obj: unknown, key: string): unknown {
+  if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+    return (obj as Record<string, unknown>)[key];
+  }
+  return undefined;
+}
+
+function asText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+/**
+ * The Arena workflow is multi-branch: depending on the turn it ends at
+ * Present Cards (search), Apollo Contact Finder (selection/enrich), or
+ * Format Export (export). Each agent returns its text in a `content` field
+ * and the execute API wraps it differently per branch. Return the FIRST
+ * text found under any of the known shapes:
+ *   output.content · data.output.content · output (string) · content ·
+ *   result.content · data.content · result.reply · reply · bare string.
+ */
+export function pickWorkflowMessage(o: unknown): string | undefined {
+  return (
+    asText(getField(getField(o, 'output'), 'content')) ??
+    asText(getField(getField(getField(o, 'data'), 'output'), 'content')) ??
+    asText(getField(o, 'output')) ??
+    asText(getField(o, 'content')) ??
+    asText(getField(getField(o, 'result'), 'content')) ??
+    asText(getField(getField(o, 'data'), 'content')) ??
+    asText(getField(getField(o, 'result'), 'reply')) ??
+    asText(getField(o, 'reply')) ??
+    asText(o)
+  );
 }
 
 /**
@@ -80,6 +114,12 @@ function extractReplyFromValue(value: unknown, depth = 0): string | null {
       return ownReply.trim();
     }
 
+    // Multi-branch contract: the ending agent's text lives in `content`.
+    const ownContent = record['content'];
+    if (typeof ownContent === 'string' && ownContent.trim() && !looksLikeInternalPayload(ownContent)) {
+      return ownContent.trim();
+    }
+
     // Well-known containers, in priority order.
     for (const key of ['result', 'output', 'content', 'data'] as const) {
       if (key in record) {
@@ -116,7 +156,7 @@ export function parseWorkflowResponse(raw: string): string | null {
   if (!trimmed) return null;
 
   // SSE-stream fallback: some workflow deployments still answer with
-  // `data:` chunks. Scan them newest-first for a usable reply.
+  // `data:` chunks. Scan them newest-first for a usable message.
   if (trimmed.startsWith('data:') || trimmed.includes('\ndata:')) {
     const chunks: unknown[] = [];
     for (const line of trimmed.split(/\r?\n/)) {
@@ -130,13 +170,21 @@ export function parseWorkflowResponse(raw: string): string | null {
         // Non-JSON stream noise is internal — never shown to the user.
       }
     }
-    return extractReply(chunks.slice().reverse());
+    const newestFirst = chunks.slice().reverse();
+    for (const chunk of newestFirst) {
+      const picked = pickWorkflowMessage(chunk);
+      if (picked && !looksLikeInternalPayload(picked)) return picked;
+    }
+    return extractReply(newestFirst);
   }
 
-  // Standard path: plain JSON body with { result: { reply, mode, cardCount } }
-  // (or output/content variants).
+  // Standard path: plain JSON body. Try the explicit multi-branch pick first
+  // (output.content / data.output.content / content / result.content / …),
+  // then fall back to the recursive extractor for anything exotic.
   try {
     const parsed: unknown = JSON.parse(trimmed);
+    const picked = pickWorkflowMessage(parsed);
+    if (picked && !looksLikeInternalPayload(picked)) return picked;
     return extractReply(parsed);
   } catch {
     return null;
@@ -187,7 +235,7 @@ export function describeWorkflowError(status: number, raw: string): string {
  * Defense in depth: even an extracted reply could, in a bad workflow run,
  * contain raw JSON or internal debug state. Any reply that parses as JSON
  * or contains known internal field names is treated as unusable so the
- * API route falls back to its friendly failure copy — internal workflow
+ * API route falls back to its debuggable failure copy — internal workflow
  * state must never leak into the chat.
  */
 export function looksLikeInternalPayload(text: string): boolean {

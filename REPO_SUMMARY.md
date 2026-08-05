@@ -1,22 +1,22 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T11:09:25.641Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T11:26:58.023Z.
 
 ## Overview
 
 Prospect Lens Console — conversational console for finding, selecting, and enriching professional contacts via the Arena workflow.
 
 **Repository:** `prospectlens-v10`  
-**File count:** 33
+**File count:** 34
 
 ## Features
 
-- Chat console UI with quick phrases and quick-pick candidate selection
-- Server-side proxy to the Arena Prospect Lens workflow (correct endpoint + dual auth headers)
-- Stable per-session conversationId reused across search → select → enrich → export turns
-- Real error surfacing on non-200 workflow responses (HTTP status + detail) instead of generic fallback
-- Best-effort chat logging to Postgres via Prisma
-- Phone-number redaction and internal-payload leak protection
+- Defensive multi-branch workflow response parsing (output.content, data.output.content, output, content, result.content, data.content, reply)
+- Raw upstream payload logging (first 1000 chars) on any failure for Vercel log debugging
+- maxDuration 60 on every API route plus vercel.json function budget
+- Exact camelCase { input, conversationId } request contract with x-api-key header and stable per-browser-session conversationId
+- Debuggable 502 upstream errors surfaced in the chat instead of a generic fallback
+- Markdown rendering of card, enrich, and export (table + fenced CSV) turns
 
 ## Tech Stack
 
@@ -85,6 +85,7 @@ Prospect Lens Console — conversational console for finding, selecting, and enr
 - `postcss.config.mjs`
 - `tailwind.config.ts`
 - `tsconfig.json`
+- `vercel.json`
 
 ### Other
 
@@ -127,39 +128,56 @@ Prospect Lens Console — conversational console for finding, selecting, and enr
 - `prisma/schema.prisma`
 - `tailwind.config.ts`
 - `tsconfig.json`
+- `vercel.json`
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T11:09:25.641Z
-- **Request:** Fix the Prospect Lens v10 frontend so its API calls succeed against the Arena workflow.
+- **Updated at:** 2026-08-05T11:26:58.023Z
+- **Request:** Fix Prospect Lens v10 so it reliably reads and renders the workflow response.
 
-Context
+Background (do not change the workflow — only the frontend): The Arena workflow is multi-branch. Depending on the turn it ends at one of three agents, each returning its text in a content field: Present Cards (search), Apollo Contact Finder (selection/enrich), or Format Export (export). The execute API wraps that. The current app assumes one fixed response path, so on some turns it shows "The search service responded, but I could not read a usable answer from it." Other turns show "I couldn't complete that search just now" — a function timeout.
 
-The app calls an Arena workflow execute endpoint from its server-side API routes (app/api/**/route.ts).
-It currently points at the wrong workflow (pure-muon 166d2c35-…) and/or has a missing/invalid API key, so the UI shows the fallback "I couldn't complete that search just now."
-The workflow itself is healthy; only the frontend config is wrong.
-Correct configuration
+Environment variables (set in Vercel → Settings → Environment Variables; never hard-code):
 
-Execute endpoint URL: https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute
-API key (workspace key): sk-sim-ywX13HywO8xTjvBbPgqjD-Idk2K4gP7P
-Tasks
+PUREMUON_URL = https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute
+PUREMUON_API_KEY = <PUREMUON_API_KEY> (paste the real workspace key in Vercel only)
+Tasks:
 
-In .env.example and Vercel env vars, ensure these two names exist and are used by the routes:
-PUREMUON_URL = the execute URL above (must contain workflow ID 65d2b97b-…, NOT 166d2c35-…)
-PUREMUON_API_KEY = the key above
-In every app/api/**/route.ts, confirm the request:
-Method: POST
-Headers: Content-Type: application/json, plus BOTH x-api-key: <PUREMUON_API_KEY> and Authorization: Bearer <PUREMUON_API_KEY>
-Body (exact camelCase keys):
-{ "input": "<user message>", "conversationId": "<stable per-session id>" }
+In every app/api/**/route.ts, after await fetch(PUREMUON_URL, ...), parse the response defensively — the agent text can arrive under any of these, so return the first that exists:
+const json = await res.json().catch(() => null);
+const pick = (o: any): string | undefined =>
+o?.output?.content ??
+o?.data?.output?.content ??
+(typeof o?.output === "string" ? o.output : undefined) ??
+o?.content ??
+o?.result?.content ??
+o?.data?.content ??
+(typeof o === "string" ? o : undefined);
+const message = pick(json);
+if (!res.ok || message == null) {
+console.error("PL upstream", res.status, JSON.stringify(json)?.slice(0, 1000));
+return NextResponse.json({ error: "upstream_unreadable", status: res.status }, { status: 502 });
+}
+return NextResponse.json({ message });
 
 
-conversationId must be generated once per browser session and reused across search → select → enrich → export turns (do NOT rename it to conversation_id, sessionId, etc.).
-Read the workflow's JSON response and render the returned agent content string in the UI (the message/cards text). Handle non-200 responses by surfacing the actual error instead of the generic fallback, so failures are debuggable.
-Set maxDuration to at least 60 for the API route(s) / in vercel.json, since a real search can take 20–50s and must not time out.
-Commit, push, and redeploy on Vercel (env var changes require a redeploy).
-Acceptance test (should return a Vercel CMO candidate card, not an error):
-curl -X POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute \
+Log the raw upstream JSON (first ~1000 chars) on any failure so the exact key is visible in Vercel logs — remove the guesswork about which branch ran.
+Set export const maxDuration = 60; on every API route (and maxDuration: 60 in vercel.json). A real search takes 20–50s; the "couldn't complete" message is a Vercel function timeout.
+Send the request body EXACTLY as (camelCase keys, unchanged):
+
+{ "input": "<user message>", "conversationId": "<stable-per-session-id>" }
+
+
+with the key in the x-api-key header. Generate conversationId once per browser session and reuse it across every turn (search → pick a number → enrich → export). Do NOT rename it (conversation_id, sessionId) and do NOT derive it from the user's email in a way that can be blank or shared — the workflow keys saved candidates on it, so an unstable value silently breaks number-picking and export even though searches still return.
+
+Render the returned message string as Markdown (the export turn returns a Markdown table + a fenced CSV block; the card turns return formatted text). On a 502/error, surface the real status instead of the generic fallback so failures are debuggable.
+Commit, push, redeploy (env-var changes require a redeploy).
+Acceptance test (replace the placeholder with the real key locally; confirm which key holds the text and that pick() returns it):
+
+curl -s -X POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute \
  -H "Content-Type: application/json" \
- -H "x-api-key: sk-sim-ywX13HywO8xTjvBbPgqjD-Idk2K4gP7P" \
- -d '{"input":"Find the CMO of Vercel","conversationId":"test-123"}'
+ -H "x-api-key: <PUREMUON_API_KEY>" \
+ -d '{"input":"Find the CMO of Vercel","conversationId":"test-123"}' | head -c 1200
+
+
+Then, in the SAME conversationId, {"input":"1","conversationId":"test-123"} should enrich, and {"input":"show all my contacts","conversationId":"test-123"} should return the table.
