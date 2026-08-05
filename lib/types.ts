@@ -100,10 +100,28 @@ export interface IdentifyApiResponse {
   message: string;
 }
 
-/** Response body from POST /api/enrich (one candidate per call). */
+/** Legacy single-candidate enrich response shape (kept for compatibility). */
 export interface EnrichApiResponse {
   id: number;
   work_email: string;
   status: 'enriched' | 'no_email';
+  message: string;
+}
+
+/**
+ * One enriched person parsed from the workflow's selected_details_json
+ * (fallback: candidates) — returned by POST /api/enrich.
+ */
+export interface EnrichedPerson {
+  id: number;
+  full_name: string;
+  /** Verified work email — empty string when Apollo found none. */
+  work_email: string;
+  status: 'enriched' | 'no_email';
+}
+
+/** Response body from POST /api/enrich — selection-driven batch enrichment. */
+export interface EnrichBatchApiResponse {
+  results: EnrichedPerson[];
   message: string;
 }

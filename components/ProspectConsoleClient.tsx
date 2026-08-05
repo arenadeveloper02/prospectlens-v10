@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useState } from 'react';
-import type { ProspectContact, ProspectStatus } from '@/lib/types';
+import type { EnrichedPerson, ProspectContact, ProspectStatus } from '@/lib/types';
 
 /** First letters of the first + last name, e.g. "Dharmesh Shah" → "DS". */
 function initialsOf(name: string): string {
@@ -39,8 +39,6 @@ function toContacts(value: unknown): ProspectContact[] {
       id,
       full_name: name,
       title: s(rec.title),
-      // company_name is the primary field the routes send — keep a defensive
-      // fallback to `company` but never rely on it.
       company_name: s(rec.company_name) || s(rec.company),
       location: s(rec.location),
       seniority: s(rec.seniority),
@@ -51,6 +49,31 @@ function toContacts(value: unknown): ProspectContact[] {
       status: toStatus(rec.status),
     });
   });
+  return out;
+}
+
+/** Defensively narrows the enrich route's results payload into typed people. */
+function toEnrichedList(value: unknown): EnrichedPerson[] {
+  if (!Array.isArray(value)) return [];
+  const out: EnrichedPerson[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const rec = item as Record<string, unknown>;
+    const id =
+      typeof rec.id === 'number' && Number.isFinite(rec.id) && rec.id >= 1
+        ? Math.floor(rec.id)
+        : 0;
+    const name = typeof rec.full_name === 'string' ? rec.full_name.trim() : '';
+    const emailRaw = typeof rec.work_email === 'string' ? rec.work_email.trim() : '';
+    const email = emailRaw.includes('@') ? emailRaw : '';
+    const status: 'enriched' | 'no_email' =
+      rec.status === 'enriched' || rec.status === 'no_email'
+        ? rec.status
+        : email
+          ? 'enriched'
+          : 'no_email';
+    out.push({ id, full_name: name, work_email: email, status });
+  }
   return out;
 }
 
@@ -140,9 +163,11 @@ export default function ProspectConsoleClient() {
   const busy = searching || enrichingIds.length > 0;
 
   /**
-   * Identify contract: POST /api/identify with { query } (+ conversationId on
-   * follow-up turns). The route returns { conversationId, contacts, message }
-   * — no reply/company/mode/counts fields exist and are never read.
+   * Identify contract: POST /api/identify with { query }. The route calls the
+   * workflow with { inputs: { input, conversationId } }, generating a fresh
+   * conversationId (uuid) and returning { conversationId, contacts, message }.
+   * That conversationId is persisted in state — enrich MUST reuse it verbatim
+   * or the workflow won't find its stored candidates.
    */
   const runIdentify = useCallback(async () => {
     const q = query.trim();
@@ -150,12 +175,10 @@ export default function ProspectConsoleClient() {
     setSearching(true);
     setSelected([]);
     try {
-      const body: { query: string; conversationId?: string } = { query: q };
-      if (conversationId) body.conversationId = conversationId;
       const response = await fetch('/api/identify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ query: q }),
       });
       const data = (await response.json().catch(() => null)) as {
         conversationId?: unknown;
@@ -163,24 +186,24 @@ export default function ProspectConsoleClient() {
         message?: unknown;
       } | null;
 
+      const message =
+        data && typeof data.message === 'string' && data.message.trim()
+          ? data.message.trim()
+          : '';
+
       if (!response.ok || !data) {
         setContacts([]);
-        setReply(
-          data && typeof data.message === 'string' && data.message.trim()
-            ? data.message.trim()
-            : "The search didn't complete. Please try again in a moment.",
-        );
+        // Surface the actual status/message so failures are debuggable.
+        setReply(message || `The search failed (HTTP ${response.status}). Please try again.`);
         return;
       }
 
-      // Persist the returned conversationId for every subsequent call.
+      // Persist the returned conversationId for every subsequent enrich call.
       if (typeof data.conversationId === 'string' && data.conversationId.trim()) {
         setConversationId(data.conversationId.trim());
       }
       const parsed = toContacts(data.contacts);
       setContacts(parsed);
-      const message =
-        typeof data.message === 'string' && data.message.trim() ? data.message.trim() : '';
       if (parsed.length === 0) {
         setReply(message || 'No matching contacts were found. Try refining your search.');
       } else {
@@ -192,78 +215,78 @@ export default function ProspectConsoleClient() {
     } finally {
       setSearching(false);
     }
-  }, [query, conversationId, busy]);
+  }, [query, busy]);
 
   /**
-   * Enrich contract: ONE candidate per call. POST /api/enrich with
-   * { id, conversationId, full_name, company_name } → { id, work_email,
-   * status, message } where status is 'enriched' | 'no_email'. The response
-   * is merged onto the matching contact by id — no bulk contacts[] handling.
+   * Enrich contract: selecting cards IS the input. The displayed card numbers
+   * of every selected contact are joined with ", " and sent as `selection`
+   * along with the SAME conversationId returned by identify. The route
+   * forwards { inputs: { input: selection, conversationId } } and returns
+   * { results: [{ id, full_name, work_email, status }], message }.
    */
-  const enrich = useCallback(
-    async (contact: ProspectContact) => {
-      if (!conversationId || contact.status !== 'identified') return;
-      if (enrichingIds.includes(contact.id)) return;
-      setEnrichingIds((prev) => [...prev, contact.id]);
-      try {
-        const response = await fetch('/api/enrich', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: contact.id,
-            conversationId,
-            full_name: contact.full_name,
-            company_name: contact.company_name,
-          }),
-        });
-        const data = (await response.json().catch(() => null)) as {
-          id?: unknown;
-          work_email?: unknown;
-          status?: unknown;
-          message?: unknown;
-        } | null;
-
-        if (response.ok && data && typeof data.id === 'number' && Number.isFinite(data.id)) {
-          const id = Math.floor(data.id);
-          const email =
-            typeof data.work_email === 'string' && data.work_email.includes('@')
-              ? data.work_email.trim()
-              : '';
-          const rawStatus = toStatus(data.status);
-          const status: ProspectStatus =
-            rawStatus === 'identified' ? (email ? 'enriched' : 'no_email') : rawStatus;
-          setContacts((prev) =>
-            prev.map((c) => (c.id === id ? { ...c, work_email: email, status } : c)),
-          );
-          setSelected((prev) => prev.filter((x) => x !== id));
-          if (typeof data.message === 'string' && data.message.trim()) {
-            setReply(data.message.trim());
-          }
-        } else {
-          setReply(
-            data && typeof data.message === 'string' && data.message.trim()
-              ? data.message.trim()
-              : `Enrichment for ${contact.full_name} didn't complete. Please try again.`,
-          );
-        }
-      } catch {
-        setReply(`Enrichment for ${contact.full_name} failed to reach the service. Please try again.`);
-      } finally {
-        setEnrichingIds((prev) => prev.filter((x) => x !== contact.id));
-      }
-    },
-    [conversationId, enrichingIds],
-  );
-
-  /** Loops sequentially — one /api/enrich call (one credit) per selected contact. */
   const enrichSelected = useCallback(async () => {
-    const targets = contacts.filter((c) => selected.includes(c.id) && c.status === 'identified');
-    for (const c of targets) {
-      // Sequential on purpose: one request per person, in order.
-      // eslint-disable-next-line no-await-in-loop
-      await enrich(c);
+    if (!conversationId || busy) return;
+    const ids = contacts
+      .filter((c) => selected.includes(c.id) && c.status === 'identified')
+      .map((c) => c.id)
+      .sort((a, b) => a - b);
+    if (ids.length === 0) return;
+    const selection = ids.join(', ');
+    setEnrichingIds(ids);
+    try {
+      const response = await fetch('/api/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selection, conversationId }),
+      });
+      const data = (await response.json().catch(() => null)) as {
+        results?: unknown;
+        message?: unknown;
+      } | null;
+
+      const message =
+        data && typeof data.message === 'string' && data.message.trim()
+          ? data.message.trim()
+          : '';
+      const results = toEnrichedList(data?.results);
+
+      if (!response.ok) {
+        setReply(message || `Enrichment failed (HTTP ${response.status}). Please try again.`);
+        return;
+      }
+      if (results.length === 0) {
+        setReply(
+          message || `Enrichment returned no details (HTTP ${response.status}). Please try again.`,
+        );
+        return;
+      }
+
+      // Merge results back onto the SAME contacts by id (name fallback).
+      setContacts((prev) =>
+        prev.map((c) => {
+          const hit =
+            results.find((r) => r.id === c.id) ??
+            results.find(
+              (r) => r.full_name && r.full_name.toLowerCase() === c.full_name.toLowerCase(),
+            );
+          if (hit && ids.includes(c.id)) {
+            return { ...c, work_email: hit.work_email, status: hit.status };
+          }
+          // Requested but not returned → no verified email was found for it.
+          if (ids.includes(c.id) && c.status === 'identified') {
+            return { ...c, status: 'no_email' as ProspectStatus };
+          }
+          return c;
+        }),
+      );
+      setSelected([]);
+      if (message) setReply(message);
+    } catch {
+      setReply('I could not reach the enrichment service. Please try again in a moment.');
+    } finally {
+      setEnrichingIds([]);
     }
-  }, [contacts, selected, enrich]);
+  }, [contacts, selected, conversationId, busy]);
 
   const exportCsv = useCallback(() => {
     if (contacts.length === 0) return;
@@ -284,7 +307,6 @@ export default function ProspectConsoleClient() {
   };
 
   const selectable = contacts.filter((c) => c.status === 'identified');
-  // Counts are computed client-side from contacts — never read from the API.
   const enrichedCount = contacts.filter((c) => c.status === 'enriched').length;
   const noEmailCount = contacts.filter((c) => c.status === 'no_email').length;
 
@@ -324,7 +346,7 @@ export default function ProspectConsoleClient() {
         />
         <button
           type="submit"
-          className="h-12 rounded-2xl bg-gradient-to-br from-[#1A73E8] to-[#1259b8] px-6 text-[14.5px] font-medium text-white shadow-[0_4px_16px_rgba(26,115,232,0.3)] transition hover:brightness-110 disabled:cursor-default disabled:opacity-40"
+          className="h-12 rounded-2xl bg-gradient-to-r from-[#1A73E8] to-[#1259b8] px-6 text-[14.5px] font-medium text-white shadow-[0_4px_16px_rgba(26,115,232,0.3)] transition hover:brightness-110 disabled:cursor-default disabled:opacity-40"
           disabled={busy || !query.trim()}
         >
           {searching ? 'Searching…' : 'Search'}
@@ -332,180 +354,176 @@ export default function ProspectConsoleClient() {
       </form>
 
       {reply && (
-        <div className="mt-4 rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-[14px] leading-relaxed text-slate-100 backdrop-blur">
+        <p className="mt-4 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm leading-relaxed text-slate-200">
           {reply}
-        </div>
-      )}
-
-      {contacts.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-slate-300">
-            {contacts.length} contact{contacts.length === 1 ? '' : 's'}
-          </span>
-          <span className="rounded-full border border-emerald-400/40 bg-emerald-400/10 px-3 py-1 text-emerald-300">
-            {enrichedCount} enriched
-          </span>
-          <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-slate-400">
-            {noEmailCount} no email
-          </span>
-          <button
-            type="button"
-            className="ml-auto rounded-lg border border-[#00A7D6]/50 bg-[#00A7D6]/15 px-3 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-[#00A7D6]/30"
-            onClick={exportCsv}
-          >
-            Export CSV
-          </button>
-        </div>
-      )}
-
-      {selectable.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-          <span>
-            {selected.length} of {selectable.length} selected
-          </span>
-          <button
-            type="button"
-            className="rounded-md border border-white/20 bg-white/5 px-2.5 py-1 font-medium text-slate-200 transition hover:bg-white/15 disabled:opacity-40"
-            disabled={busy || selected.length === selectable.length}
-            onClick={() => setSelected(selectable.map((c) => c.id))}
-          >
-            Select all
-          </button>
-          <button
-            type="button"
-            className="rounded-md border border-white/20 bg-white/5 px-2.5 py-1 font-medium text-slate-200 transition hover:bg-white/15 disabled:opacity-40"
-            disabled={busy || selected.length === 0}
-            onClick={() => setSelected([])}
-          >
-            Clear
-          </button>
-          <button
-            type="button"
-            className="rounded-lg border border-[#1A73E8]/70 bg-[#1A73E8]/30 px-3 py-1.5 font-medium text-blue-100 transition hover:bg-[#1A73E8]/50 disabled:opacity-40"
-            disabled={busy || selected.length === 0}
-            onClick={() => void enrichSelected()}
-          >
-            {enrichingIds.length > 0 ? 'Enriching…' : `Enrich ${selected.length} selected`}
-          </button>
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-col gap-3">
-        {contacts.map((c) => {
-          const isSelected = selected.includes(c.id);
-          const isEnriching = enrichingIds.includes(c.id);
-          const enriched = c.status === 'enriched' && Boolean(c.work_email);
-          const noEmail = c.status === 'no_email';
-          return (
-            <div
-              key={c.id}
-              className={`flex items-start gap-3 rounded-2xl border p-4 transition ${
-                enriched
-                  ? 'border-emerald-400/40 bg-emerald-400/5'
-                  : isSelected
-                    ? 'border-[#1A73E8]/70 bg-[#1A73E8]/15'
-                    : 'border-[#1A73E8]/30 bg-[#1A73E8]/10 hover:border-[#1A73E8]/60'
-              }`}
-              onClick={() => {
-                if (c.status === 'identified' && !busy) toggle(c.id);
-              }}
-            >
-              <span className="mt-1 flex-shrink-0">
-                {c.status === 'identified' ? (
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-[#1A73E8]"
-                    checked={isSelected}
-                    disabled={busy}
-                    onChange={() => toggle(c.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    aria-label={`Select ${c.full_name}`}
-                  />
-                ) : (
-                  <span className="text-emerald-300" aria-hidden="true">
-                    ✓
-                  </span>
-                )}
-              </span>
-              <ContactAvatar name={c.full_name} photoUrl={c.photo_url} />
-              <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-[14.5px] font-semibold text-white">{c.full_name}</span>
-                {(c.title || c.company_name) && (
-                  <span className="text-[13.5px] text-slate-200">
-                    {c.title}
-                    {c.title && c.company_name ? ' · ' : ''}
-                    {c.company_name}
-                  </span>
-                )}
-                {c.location && <span className="text-xs text-slate-400">{c.location}</span>}
-                {(c.seniority || c.confidence) && (
-                  <span className="mt-1 flex flex-wrap gap-1.5">
-                    {c.seniority && (
-                      <span className="rounded-full border border-purple-400/40 bg-purple-400/10 px-2 py-0.5 text-[11px] text-purple-200">
-                        {c.seniority}
-                      </span>
-                    )}
-                    {c.confidence && (
-                      <span className="rounded-full border border-cyan-400/40 bg-cyan-400/10 px-2 py-0.5 text-[11px] text-cyan-200">
-                        {c.confidence} match
-                      </span>
-                    )}
-                  </span>
-                )}
-                {enriched && (
-                  <span className="mt-1 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-emerald-400/50 bg-emerald-400/15 px-2 py-0.5 text-[11px] font-medium text-emerald-200">
-                      Verified
-                    </span>
-                    <span className="break-all text-[13px] font-medium text-emerald-100">
-                      {c.work_email}
-                    </span>
-                    <CopyEmailButton email={c.work_email} />
-                  </span>
-                )}
-                {noEmail && (
-                  <span className="mt-1 w-fit rounded-full border border-white/20 bg-white/5 px-2 py-0.5 text-[11px] text-slate-400">
-                    No email
-                  </span>
-                )}
-              </span>
-              <span className="flex flex-shrink-0 flex-col items-end gap-2">
-                {c.linkedin_url && (
-                  <a
-                    className="text-xs font-medium text-blue-300 underline underline-offset-2 hover:text-blue-200"
-                    href={c.linkedin_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    aria-label={`View ${c.full_name} on LinkedIn (opens in a new tab)`}
-                  >
-                    View LinkedIn
-                  </a>
-                )}
-                {c.status === 'identified' && (
-                  <button
-                    type="button"
-                    className="rounded-lg border border-[#1A73E8]/70 bg-[#1A73E8]/30 px-3 py-1.5 text-xs font-medium text-blue-100 transition hover:bg-[#1A73E8]/50 disabled:opacity-40"
-                    disabled={busy}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void enrich(c);
-                    }}
-                  >
-                    {isEnriching ? 'Enriching…' : 'Get email'}
-                  </button>
-                )}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      {contacts.length > 0 && (
-        <p className="mt-4 text-xs text-slate-500">
-          Select one or more contacts, then press Enrich to fetch verified emails (Apollo-only —
-          never guessed).
         </p>
+      )}
+
+      {searching && (
+        <div className="mt-6 flex items-center gap-3 text-sm text-slate-300">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#1A73E8] border-t-transparent" />
+          Searching — a deep search can take a little while…
+        </div>
+      )}
+
+      {!searching && contacts.length === 0 && !reply && (
+        <div className="mt-10 rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+          <p className="text-[15px] font-semibold text-white">Welcome to Prospect Lens</p>
+          <p className="mt-2 text-sm text-slate-300">
+            Search for a person or role (e.g. “Find the CMO of Vercel”), then click cards to
+            select them and press “Enrich selected” to fetch verified work emails.
+          </p>
+        </div>
+      )}
+
+      {contacts.length > 0 && (
+        <>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-400">
+              {contacts.length} contact{contacts.length > 1 ? 's' : ''} · {enrichedCount} enriched ·{' '}
+              {noEmailCount} without email
+            </span>
+            <span className="ml-auto flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-white/15 disabled:cursor-default disabled:opacity-40"
+                disabled={busy || selectable.length === 0 || selected.length === selectable.length}
+                onClick={() => setSelected(selectable.map((c) => c.id))}
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-white/15 disabled:cursor-default disabled:opacity-40"
+                disabled={busy || selected.length === 0}
+                onClick={() => setSelected([])}
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-[#1A73E8]/70 bg-[#1A73E8]/30 px-4 py-1.5 text-xs font-semibold text-blue-100 transition hover:bg-[#1A73E8]/50 hover:text-white disabled:cursor-default disabled:opacity-40"
+                disabled={busy || selected.length === 0}
+                onClick={() => void enrichSelected()}
+              >
+                {enrichingIds.length > 0 ? 'Enriching…' : `Enrich ${selected.length} selected`}
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-[#00A7D6]/60 bg-[#00A7D6]/20 px-4 py-1.5 text-xs font-semibold text-cyan-100 transition hover:bg-[#00A7D6]/40 hover:text-white disabled:cursor-default disabled:opacity-40"
+                disabled={busy}
+                onClick={exportCsv}
+              >
+                Export CSV
+              </button>
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            {contacts.map((c) => {
+              const isSelected = selected.includes(c.id);
+              const isEnriching = enrichingIds.includes(c.id);
+              const selectableCard = c.status === 'identified';
+              return (
+                <div
+                  key={c.id}
+                  className={`flex items-start gap-3 rounded-2xl border p-4 transition ${
+                    isSelected
+                      ? 'border-[#1A73E8] bg-[#1A73E8]/20'
+                      : 'border-[#1A73E8]/30 bg-[#1A73E8]/10 hover:border-[#1A73E8]/60'
+                  }${selectableCard ? ' cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (selectableCard && !busy) toggle(c.id);
+                  }}
+                >
+                  <span className="mt-1 flex-shrink-0">
+                    {selectableCard ? (
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[#1A73E8]"
+                        checked={isSelected}
+                        disabled={busy}
+                        onChange={() => toggle(c.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`Select candidate ${c.id}: ${c.full_name}`}
+                      />
+                    ) : (
+                      <span className="text-sm text-emerald-300" aria-hidden="true">
+                        ✓
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#1A73E8] to-[#00A7D6] text-[13px] font-semibold text-white"
+                    aria-hidden="true"
+                  >
+                    {c.id}
+                  </span>
+                  <ContactAvatar name={c.full_name} photoUrl={c.photo_url} />
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[14.5px] font-semibold text-white">{c.full_name}</span>
+                    {(c.title || c.company_name) && (
+                      <span className="text-[13px] text-slate-300">
+                        {c.title}
+                        {c.title && c.company_name ? ' · ' : ''}
+                        {c.company_name}
+                      </span>
+                    )}
+                    {c.location && <span className="text-xs text-slate-400">{c.location}</span>}
+                    {(c.seniority || c.confidence) && (
+                      <span className="flex flex-wrap gap-1.5">
+                        {c.seniority && (
+                          <span className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] text-slate-200">
+                            {c.seniority}
+                          </span>
+                        )}
+                        {c.confidence && (
+                          <span className="rounded-full border border-[#00A7D6]/50 bg-[#00A7D6]/15 px-2 py-0.5 text-[11px] text-cyan-200">
+                            {c.confidence} match
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {c.work_email && (
+                      <span className="flex items-center gap-2 text-[13px] text-emerald-200">
+                        <span className="truncate">{c.work_email}</span>
+                        <CopyEmailButton email={c.work_email} />
+                      </span>
+                    )}
+                    {c.status === 'no_email' && (
+                      <span className="text-xs text-amber-300">No verified email available</span>
+                    )}
+                  </span>
+                  <span className="ml-auto flex flex-shrink-0 flex-col items-end gap-2">
+                    {c.linkedin_url && (
+                      <a
+                        className="rounded-md border border-[#1A73E8]/60 bg-[#1A73E8]/20 px-2.5 py-1 text-[11px] font-medium text-blue-200 transition hover:bg-[#1A73E8]/40 hover:text-white"
+                        href={c.linkedin_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`View ${c.full_name} on LinkedIn (opens in a new tab)`}
+                      >
+                        LinkedIn
+                      </a>
+                    )}
+                    {isEnriching && (
+                      <span
+                        className="h-4 w-4 animate-spin rounded-full border-2 border-[#1A73E8] border-t-transparent"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="mt-4 text-xs text-slate-400">
+            Click cards to select them, then press “Enrich selected” — the picked card numbers are
+            sent to the workflow to fetch verified emails (Apollo-only, never guessed).
+          </p>
+        </>
       )}
     </div>
   );

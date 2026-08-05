@@ -1,22 +1,22 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T15:37:21.021Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T16:18:39.076Z.
 
 ## Overview
 
-Prospect Lens Console — search for professional contacts via the Prospect Lens workflow, render candidate cards, and enrich verified work emails per contact.
+Prospect Lens Console — a conversational console for finding, selecting, and enriching professional contacts via the Arena Prospect Lens workflow.
 
 **Repository:** `prospectlens-v10`  
-**File count:** 37
+**File count:** 40
 
 ## Features
 
-- Identify contacts via /api/identify with { query, conversationId } and render cards from contacts[]
-- Per-contact enrichment via /api/enrich ({ id, conversationId, full_name, company_name }) — one credit per person
-- Enrich selected loops sequentially, one request per contact, merging work_email/status by id
-- Client-side computed counts (enriched / no email) — never read from the API
-- CSV export with real fields: full_name, title, company_name, location, seniority, work_email, status, linkedin_url
-- Stable conversationId persisted in component state and echoed on every identify/enrich call
+- Identify contacts via POST /api/identify using the { inputs: { input, conversationId } } workflow contract
+- Selection-driven enrichment: picked card numbers are joined and sent as the workflow input via POST /api/enrich
+- Stable conversationId persisted in client state between identify and enrich calls
+- Reads workflow results from data.output ?? data (out.candidates / out.selected_details_json / out.message)
+- Debuggable error surfacing with real upstream HTTP status and message
+- CSV export of identified and enriched contacts
 
 ## Tech Stack
 
@@ -55,7 +55,9 @@ Prospect Lens Console — search for professional contacts via the Prospect Lens
 ### API routes
 
 - `app/api/chat/route.ts`
+- `app/api/enrich/route.ts`
 - `app/api/health/route.ts`
+- `app/api/identify/route.ts`
 
 ### Components
 
@@ -74,6 +76,7 @@ Prospect Lens Console — search for professional contacts via the Prospect Lens
 - `lib/arena-email.ts`
 - `lib/enrich-extract.ts`
 - `lib/prisma.ts`
+- `lib/prospect-lens-api.ts`
 - `lib/prospectlens.ts`
 - `lib/types.ts`
 - `prisma/schema.prisma`
@@ -104,7 +107,9 @@ Prospect Lens Console — search for professional contacts via the Prospect Lens
 - `REPO_SUMMARY.md`
 - `app/access-denied/page.tsx`
 - `app/api/chat/route.ts`
+- `app/api/enrich/route.ts`
 - `app/api/health/route.ts`
+- `app/api/identify/route.ts`
 - `app/arena-ds-tokens.css`
 - `app/chat-polish.css`
 - `app/error.tsx`
@@ -124,6 +129,7 @@ Prospect Lens Console — search for professional contacts via the Prospect Lens
 - `lib/arena-email.ts`
 - `lib/enrich-extract.ts`
 - `lib/prisma.ts`
+- `lib/prospect-lens-api.ts`
 - `lib/prospectlens.ts`
 - `lib/types.ts`
 - `middleware.ts`
@@ -138,39 +144,49 @@ Prospect Lens Console — search for professional contacts via the Prospect Lens
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T15:37:21.021Z
-- **Request:** The app is now pointed at the Prospect Lens workflow. /api/identify/route.ts and /api/enrich/route.ts have already been rewritten to call Prospect Lens and return a specific JSON shape. Do not change those two route files. The problem is app/page.tsx still uses the OLD API contract, so cards and emails don't render. Fix page.tsx (and the small items below) to match the routes exactly. Change ONLY data-wiring/logic — do not alter the visual design, layout, styling, or copy.
+- **Updated at:** 2026-08-05T16:18:39.076Z
+- **Request:** Fix the Prospect Lens integration in this Next.js app (leadership-finder-app). The app currently fails with "The search didn't complete" because the API routes call the wrong host, send the wrong payload shape, and read the response at the wrong level. Apply all of the following exactly.
 
-1. Fix the identify request/response wiring in page.tsx → runIdentify()
+1. Environment variables — update both app/api/.env.example-style files: files/leadership-finder-app/.env.example and files/leadership-finder-app/.env.local.example. Set these two keys (replace any sim.ai URL and any placeholder key):
 
-The identify route reads only query (and optional conversationId) and returns { conversationId, contacts, message }. It does NOT return reply, company, mode, counts.
-Persist the returned conversationId in component state (add const [conversationId, setConversationId] = useState('')) and send it back on every subsequent identify/enrich call.
-Replace reads of data.reply with data.message; render that message in the existing reply panel (keep the reply state variable/UI, just feed it from data.message).
-Remove the data.company / company handling and the data.mode === 'no_company' branch (the route never sends them). Keep a simple empty-state message when contacts is empty, driven off data.message.
-Drop the advanced-search fields from the request body (route ignores company_domain, titles, limit, seniorities). Either keep the advanced UI purely cosmetic or fold its values into the query string — do not send unused keys.
-2. Fix the enrich request/response wiring in page.tsx → enrich()
+code
 
-The enrich route enriches ONE candidate per call and expects body { id, conversationId, full_name, company_name }. It returns { id, work_email, status, message } where status is 'enriched' or 'no_email'.
-Change enrich() to take a single contact (not an array of ids). For "Enrich selected", loop and call the route once per selected contact (sequentially) so each spends exactly one credit for one person.
-Send the full contact fields the route needs: { id: c.id, conversationId, full_name: c.full_name, company_name: c.company_name }.
-On response, merge by id: set that contact's work_email and status from the response. Remove the old data.contacts[] / byId bulk-merge and the data.enriched/offTarget/unmatched counts handling (the route doesn't return those).
-3. Reconcile the counts UI
+PROSPECT_LENS_URL=https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute
+PROSPECT_LENS_API_KEY=sk-arena-3f9c2a7e5b1d48609a2f6c8e4d0b7a12
+Also set these same two variables in Vercel → Project → Settings → Environment Variables (Production + Preview).
 
-The routes never return enriched/offTarget/unmatched. Either remove the counts pill bar, or compute it client-side from contacts (e.g. count status === 'enriched' and status === 'no_email'). Do not read counts from the API response.
-4. Fix the Contact type / field names to match the route output
+2. The workflow contract (source of truth). The deployed Prospect Lens workflow's Start block accepts ONLY two inputs: input (string) and conversationId (string). The execute API requires them wrapped in an inputs object, and returns the workflow result nested under output. There is NO selectedId field — remove any use of it.
 
-Identify returns each contact as: { id, full_name, title, company_name, location, seniority, confidence, linkedin_url, photo_url, work_email:'', status:'identified' }.
-The card currently reads c.company || c.company_name — keep that fallback, but ensure company_name is the primary field used everywhere (CSV export currently uses company, which will be blank — change export column to company_name).
-Remove references to fields the routes never send: apollo_person_id, email_status, email_deliverable, matched_org, email_company_match, enriched_offtarget. Simplify the post-enrich badges to: verified/found when work_email is present (status === 'enriched'), and "No email" when status === 'no_email'. Drop the off-target ("amber") branch entirely.
-5. CSV export
+Request body for every call MUST be:
 
-Update the export columns to the real fields: ['full_name','title','company_name','location','seniority','work_email','status','linkedin_url'].
-6. Env / config (already correct — verify only)
+json
 
-.env.example and .env.local.example already define PROSPECT_LENS_URL and PROSPECT_LENS_API_KEY. Confirm next.config.js / any config doesn't still reference the old pure-muon vars. The user must set a real PROSPECT_LENS_API_KEY in Vercel + local .env.local.
-Acceptance criteria
+{ "inputs": { "input": "<string>", "conversationId": "<string>" } }
+Auth header: x-api-key: <PROSPECT_LENS_API_KEY>. Response: read const out = data.output ?? data; then use out.candidates, out.message, out.selected_details_json, etc. — never top-level.
 
-After a search, cards render immediately from contacts[] with name, title, company, location, seniority, avatar, LinkedIn — no email shown yet.
-Clicking "Get email" on a card calls enrich once for that person and populates work_email on that card (verified email like dshah@hubspot.com appears); "Enrich selected" does the same per selected card.
-Phone is never displayed anywhere.
-No runtime reads of data.reply, data.company, data.counts, or data.contacts (bulk) remain.
+3. app/api/identify/route.ts — for a search query, generate a fresh conversationId (uuid) and return it to the client. Send:
+
+ts
+
+body: JSON.stringify({ inputs: { input: query, conversationId } })
+Then:
+
+ts
+
+const data = await res.json().catch(() => ({}));
+const out = data.output ?? data;
+const contacts = extractCandidates(out).map(toContact);
+return NextResponse.json({ conversationId, contacts, message: out.message ?? "" });
+4. app/api/enrich/route.ts — enrichment is driven purely by card selection. The client passes the selected card numbers as a string (e.g. "1" or "1, 3") plus the SAME conversationId returned by identify. Delete any selectedId logic. Send:
+
+ts
+
+const input = String(selection); // e.g. "1, 3" — just the picked card numbers
+body: JSON.stringify({ inputs: { input, conversationId } })
+Then read the enriched people from out.selected_details_json (fallback out.candidates), pulling work_email for each. Return them plus message: out.message ?? "".
+
+5. Frontend (app/page.tsx) — selecting cards IS the input. When the user clicks cards to select them, collect their displayed numbers, join with ", ", and send that string as selection to the enrich route along with the stored conversationId from the identify response. Do not build any other selection mechanism. Persist conversationId in state between the identify call and the enrich call — enrich MUST reuse the exact same conversationId, or the workflow won't find the candidates.
+
+6. Error handling — if a route returns non-2xx or out is empty, surface the actual status/message instead of the generic "try again," so failures are debuggable.
+
+Apply all edits, keep the existing UI/styling untouched (change only data wiring), and confirm the build passes.
