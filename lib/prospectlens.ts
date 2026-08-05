@@ -35,6 +35,17 @@ export interface WorkflowResult {
   cardCount?: number;
 }
 
+/**
+ * After the terminal agent blocks run, table blocks execute and return raw
+ * status strings like "Row updated successfully" / "Rows inserted". These are
+ * internal plumbing and must NEVER be shown as the assistant's answer.
+ */
+const TABLE_STATUS = /^(row|rows)\b.*\b(updated|inserted|upserted|added|saved)\b/i;
+
+export function isTableStatus(text: string): boolean {
+  return TABLE_STATUS.test(text.trim());
+}
+
 function getField(obj: unknown, key: string): unknown {
   if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
     return (obj as Record<string, unknown>)[key];
@@ -46,35 +57,105 @@ function asText(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+/** Like asText, but rejects table-status plumbing strings. */
+function asMessageText(value: unknown): string | undefined {
+  const text = asText(value);
+  return text && !isTableStatus(text) ? text : undefined;
+}
+
 /**
- * The Arena workflow is multi-branch: depending on the turn it ends at
- * Present Cards (search), Apollo Contact Finder (selection/enrich), or
- * Format Export (export). Each terminal block returns its visible text in
- * a `content` field — but the search branch also carries a structured
- * object { mode, selected_ids, candidates, message } where the visible text
- * lives under `message`. The execute API wraps it differently per branch.
- * Return the FIRST text found under any of the known shapes:
- *   output.content · data.output.content · output.message ·
- *   data.output.message · output (string) · content · message ·
- *   result.content · result.message · data.content · data.message ·
- *   result.reply · reply · bare string.
+ * The workflow ends at one of three AGENT blocks whose text IS the answer.
+ * Priority order: Format Export (export turn) → Apollo Contact Finder
+ * (selection/enrich turn) → Present Cards (search turn). Table blocks run
+ * AFTER these agents and only return status strings — they are ignored.
+ */
+const AGENT_BLOCK_NAMES = ['Format Export', 'Apollo Contact Finder', 'Present Cards'] as const;
+
+function blockText(block: unknown): string | undefined {
+  const text =
+    asMessageText(getField(block, 'content')) ??
+    asMessageText(getField(getField(block, 'output'), 'content')) ??
+    asMessageText(getField(block, 'message')) ??
+    asMessageText(getField(getField(block, 'output'), 'message')) ??
+    asMessageText(getField(block, 'output'));
+  if (text && !looksLikeInternalPayload(text)) return text;
+  return undefined;
+}
+
+/**
+ * Reads per-block outputs from the execute response. Block outputs may live
+ * under json.blocks / json.output.blocks / json.logs / json.data.blocks —
+ * both as an object keyed by block name and as an array of
+ * { name|blockName|title, content|output } entries. Returns the FIRST
+ * non-empty agent text in priority order, explicitly skipping table statuses.
+ */
+export function pickAgentBlockContent(root: unknown): string | undefined {
+  const containers: unknown[] = [
+    getField(root, 'blocks'),
+    getField(getField(root, 'output'), 'blocks'),
+    getField(getField(root, 'data'), 'blocks'),
+    getField(getField(root, 'result'), 'blocks'),
+    getField(root, 'logs'),
+    getField(getField(root, 'output'), 'logs'),
+    getField(root, 'output'),
+    getField(root, 'result'),
+    getField(root, 'data'),
+    root,
+  ];
+
+  for (const name of AGENT_BLOCK_NAMES) {
+    for (const container of containers) {
+      if (!container || typeof container !== 'object') continue;
+
+      // Shape A: object keyed by block name — blocks["Present Cards"].content
+      const keyed = getField(container, name);
+      const keyedText = blockText(keyed);
+      if (keyedText) return keyedText;
+
+      // Shape B: array of block entries with a name-ish field.
+      if (Array.isArray(container)) {
+        for (const item of container) {
+          const itemName =
+            asText(getField(item, 'name')) ??
+            asText(getField(item, 'blockName')) ??
+            asText(getField(item, 'block')) ??
+            asText(getField(item, 'title')) ??
+            asText(getField(item, 'label'));
+          if (itemName && itemName.toLowerCase() === name.toLowerCase()) {
+            const text = blockText(item);
+            if (text) return text;
+          }
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Generic multi-branch pick. Each terminal agent returns its visible text in
+ * a `content` field — but the search branch also carries a structured object
+ * { mode, selected_ids, candidates, message } where the visible text lives
+ * under `message`. The execute API wraps it differently per branch. Returns
+ * the FIRST text found under any of the known shapes, skipping table-status
+ * strings like "Row updated successfully".
  */
 export function pickWorkflowMessage(o: unknown): string | undefined {
   return (
-    asText(getField(getField(o, 'output'), 'content')) ??
-    asText(getField(getField(getField(o, 'data'), 'output'), 'content')) ??
-    asText(getField(getField(o, 'output'), 'message')) ??
-    asText(getField(getField(getField(o, 'data'), 'output'), 'message')) ??
-    asText(getField(o, 'output')) ??
-    asText(getField(o, 'content')) ??
-    asText(getField(o, 'message')) ??
-    asText(getField(getField(o, 'result'), 'content')) ??
-    asText(getField(getField(o, 'result'), 'message')) ??
-    asText(getField(getField(o, 'data'), 'content')) ??
-    asText(getField(getField(o, 'data'), 'message')) ??
-    asText(getField(getField(o, 'result'), 'reply')) ??
-    asText(getField(o, 'reply')) ??
-    asText(o)
+    asMessageText(getField(getField(o, 'output'), 'content')) ??
+    asMessageText(getField(getField(getField(o, 'data'), 'output'), 'content')) ??
+    asMessageText(getField(getField(o, 'output'), 'message')) ??
+    asMessageText(getField(getField(getField(o, 'data'), 'output'), 'message')) ??
+    asMessageText(getField(o, 'output')) ??
+    asMessageText(getField(o, 'content')) ??
+    asMessageText(getField(o, 'message')) ??
+    asMessageText(getField(getField(o, 'result'), 'content')) ??
+    asMessageText(getField(getField(o, 'result'), 'message')) ??
+    asMessageText(getField(getField(o, 'data'), 'content')) ??
+    asMessageText(getField(getField(o, 'data'), 'message')) ??
+    asMessageText(getField(getField(o, 'result'), 'reply')) ??
+    asMessageText(getField(o, 'reply')) ??
+    asMessageText(o)
   );
 }
 
@@ -85,10 +166,10 @@ export function pickWorkflowMessage(o: unknown): string | undefined {
  * { mode, candidates, message } keeps its visible text under `message`),
  * then the well-known container keys (result, output, content, data,
  * message), then plain-string output/content/message fields (only when they
- * don't look like internal state), then a generic depth-limited scan. JSON
- * embedded inside strings is parsed and searched too. Returns null when
- * nothing user-facing is found so the API route can show its friendly
- * failure copy instead.
+ * don't look like internal state or table statuses), then a generic
+ * depth-limited scan. JSON embedded inside strings is parsed and searched
+ * too. Returns null when nothing user-facing is found so the API route can
+ * show its friendly failure copy instead.
  */
 function extractReplyFromValue(value: unknown, depth = 0): string | null {
   if (depth > 6 || value === null || value === undefined) return null;
@@ -124,20 +205,30 @@ function extractReplyFromValue(value: unknown, depth = 0): string | null {
 
     // Structured contract: { reply, mode, cardCount }
     const ownReply = record['reply'];
-    if (typeof ownReply === 'string' && ownReply.trim()) {
+    if (typeof ownReply === 'string' && ownReply.trim() && !isTableStatus(ownReply)) {
       return ownReply.trim();
     }
 
     // Multi-branch contract: the ending agent's text lives in `content`.
     const ownContent = record['content'];
-    if (typeof ownContent === 'string' && ownContent.trim() && !looksLikeInternalPayload(ownContent)) {
+    if (
+      typeof ownContent === 'string' &&
+      ownContent.trim() &&
+      !isTableStatus(ownContent) &&
+      !looksLikeInternalPayload(ownContent)
+    ) {
       return ownContent.trim();
     }
 
     // Structured search-turn object: { mode, selected_ids, candidates, message }
     // — the user-facing text is the `message` string.
     const ownMessage = record['message'];
-    if (typeof ownMessage === 'string' && ownMessage.trim() && !looksLikeInternalPayload(ownMessage)) {
+    if (
+      typeof ownMessage === 'string' &&
+      ownMessage.trim() &&
+      !isTableStatus(ownMessage) &&
+      !looksLikeInternalPayload(ownMessage)
+    ) {
       return ownMessage.trim();
     }
 
@@ -152,7 +243,12 @@ function extractReplyFromValue(value: unknown, depth = 0): string | null {
     // Plain-string fallbacks (data.output ?? data.content ?? data.message).
     for (const key of ['output', 'content', 'message'] as const) {
       const raw = record[key];
-      if (typeof raw === 'string' && raw.trim() && !looksLikeInternalPayload(raw)) {
+      if (
+        typeof raw === 'string' &&
+        raw.trim() &&
+        !isTableStatus(raw) &&
+        !looksLikeInternalPayload(raw)
+      ) {
         return raw.trim();
       }
     }
@@ -193,18 +289,22 @@ export function parseWorkflowResponse(raw: string): string | null {
     }
     const newestFirst = chunks.slice().reverse();
     for (const chunk of newestFirst) {
+      const agent = pickAgentBlockContent(chunk);
+      if (agent) return agent;
       const picked = pickWorkflowMessage(chunk);
       if (picked && !looksLikeInternalPayload(picked)) return picked;
     }
     return extractReply(newestFirst);
   }
 
-  // Standard path: plain JSON body. Try the explicit multi-branch pick first
-  // (output.content / output.message / data.output.content / content /
-  // message / result.content / …), then fall back to the recursive extractor
-  // for anything exotic (including the structured search-turn object).
+  // Standard path: plain JSON body. Prefer the NAMED AGENT blocks (Format
+  // Export → Apollo Contact Finder → Present Cards) so trailing table-status
+  // strings never win, then the explicit multi-branch pick, then the
+  // recursive extractor for anything exotic.
   try {
     const parsed: unknown = JSON.parse(trimmed);
+    const agent = pickAgentBlockContent(parsed);
+    if (agent) return agent;
     const picked = pickWorkflowMessage(parsed);
     if (picked && !looksLikeInternalPayload(picked)) return picked;
     return extractReply(parsed);

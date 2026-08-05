@@ -1,22 +1,21 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T11:39:16.558Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T11:57:27.550Z.
 
 ## Overview
 
-Prospect Lens Console — conversational console for finding, selecting, and enriching professional contacts via the Arena workflow.
+Prospect Lens Console — conversational console for finding, selecting, and enriching professional contacts.
 
 **Repository:** `prospectlens-v10`  
 **File count:** 34
 
 ## Features
 
-- Chat console with Markdown rendering (tables, candidate cards, CSV export blocks)
-- Robust multi-branch workflow response parsing including structured { mode, candidates, message } payloads
-- 60s function budget with 55s outbound abort so real 20–50s searches never die to Vercel timeouts
-- Stable per-browser-session conversationId reused across search → pick → enrich → export
-- Debuggable upstream failures: raw payload logged (first 1500 chars) and real status surfaced in the UI
-- Arena email gate with access-denied page and cross-origin iframe support
+- 60s function budget with ~58s upstream abort so long multi-lookup searches complete instead of timing out
+- Agent-block-aware response parsing: prefers Format Export → Apollo Contact Finder → Present Cards content and never surfaces trailing table statuses like 'Row updated successfully'
+- Stable per-browser-session conversationId reused for every turn (search → pick → enrich → export)
+- Markdown rendering with candidate cards, tables, and CSV export blocks
+- Debuggable errors: real upstream HTTP status surfaced in chat and raw payload logged in Vercel
 
 ## Tech Stack
 
@@ -132,10 +131,10 @@ Prospect Lens Console — conversational console for finding, selecting, and enr
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T11:39:16.558Z
-- **Request:** Fix Prospect Lens v10 frontend: response parsing + function timeout. Do NOT change the workflow.
+- **Updated at:** 2026-08-05T11:57:27.550Z
+- **Request:** Fix Prospect Lens v10 frontend: (A) timeouts on search, (B) it sometimes shows the raw "Row updated successfully" status instead of the real answer. Do NOT change the workflow.
 
-Context: The Arena workflow ends at one of several blocks depending on the turn. The final visible text lives under the terminal block's content, but the search branch also carries a structured object { mode, selected_ids, candidates, message }. The app currently (a) times out on real searches and (b) can't locate the text when the payload is an object, so it shows "responded (HTTP 200) but I could not find a readable message" or "I couldn't complete that search just now."
+Context: The Arena workflow ends at one of three agent blocks whose text is the user-facing answer — Present Cards (search), Apollo Contact Finder (selection/enrich), Format Export (export). Each exposes its text under content. After those agents, table blocks run and return status strings like "Row updated successfully". The frontend must surface the AGENT content, never the trailing table status. Also, a real search legitimately takes 30–60s, which is causing "I couldn't complete that search just now" timeouts.
 
 Env vars (Vercel → Settings → Environment Variables; never hard-code):
 
@@ -143,45 +142,46 @@ PUREMUON_URL = https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6
 PUREMUON_API_KEY = <PUREMUON_API_KEY>
 Tasks
 
-Timeout (do this first — it's the main cause of the "couldn't complete" errors). In every app/api/**/route.ts add export const maxDuration = 60; and set maxDuration: 60 in vercel.json. Give the outbound fetch an AbortController timeout of ~55s. A real search runs multiple upstream lookups and legitimately takes 20–50s.
-Parse the payload robustly. The agent text can arrive as a string OR inside a structured object. After await fetch(...):
+Fix the timeout (primary). Add export const maxDuration = 60; (or higher if your Vercel plan allows) to every app/api/**/route.ts, set maxDuration: 60 in vercel.json, and give the outbound fetch an AbortController of ~58s. Searches run a long chain of live lookups; short function limits are the main cause of the "couldn't complete" error.
+Read the AGENT output, not the last block. The execute response includes per-block outputs. Prefer the named agent blocks in this priority order and use the FIRST that has non-empty text; explicitly IGNORE table/status strings like "Row updated successfully" / "Rows inserted":
 ts
 
 const json = await res.json().catch(() => null);
+const IGNORE = /^(row|rows)\b.*\b(updated|inserted|upserted|added|saved)\b/i;
 
-const pickString = (o: any): string | undefined => {
-if (o == null) return undefined;
-if (typeof o === "string") return o;
-// common wrappers
-const cands = [o.output, o.data?.output, o.result, o.data];
-for (const c of cands) {
-if (typeof c === "string") return c;
-if (c && typeof c.content === "string") return c.content;
-if (c && typeof c.message === "string") return c.message;
-}
-if (typeof o.content === "string") return o.content;
-// structured search-turn object: { mode, candidates, message }
-if (typeof o.message === "string") return o.message;
-const deepMsg = o.output?.message ?? o.data?.output?.message;
-if (typeof deepMsg === "string") return deepMsg;
-return undefined;
+// block outputs may live under json.blocks / json.output.blocks / json.logs — adjust to actual shape
+const byName = (name: string): string | undefined => {
+const b = json?.blocks?.[name] ?? json?.output?.[name];
+const c = b?.content ?? b?.output?.content;
+return typeof c === "string" && c.trim() ? c : undefined;
 };
 
-const message = pickString(json);
-if (!res.ok || message == null) {
+let message =
+byName("Format Export") ??
+byName("Apollo Contact Finder") ??
+byName("Present Cards") ??
+// generic fallbacks:
+json?.output?.content ?? json?.content ??
+(typeof json?.output === "string" ? json.output : undefined);
+
+if (typeof message === "string" && IGNORE.test(message.trim())) message = undefined;
+
+if (!res.ok || !message) {
 console.error("PL upstream", res.status, JSON.stringify(json)?.slice(0, 1500));
 return NextResponse.json({ error: "upstream_unreadable", status: res.status }, { status: 502 });
 }
 return NextResponse.json({ message });
-Log the raw upstream JSON (first ~1500 chars) on any failure so the exact wrapper key is visible in Vercel logs.
-Request body stays exactly { "input": "<user msg>", "conversationId": "<stable-per-session-id>" } with the key in the x-api-key header. Generate conversationId once per browser session and reuse it across search → pick a number → enrich → export. Do NOT rename it (conversation_id/sessionId) or derive it from an email that can be blank/shared — the workflow keys saved candidates on it, so an unstable value silently breaks number-picking and export.
-Render the returned message as Markdown (export returns a Markdown table + fenced CSV). On 502/error, show the real status, not the generic fallback.
+Adjust json?.blocks?.[name] to the execute API's real shape — see task 3.
+
+Log the raw upstream JSON (first ~1500 chars) once so you can confirm exactly where per-block content lives, then tighten the selectors above to the real path.
+Keep the request body EXACTLY { "input": "<user msg>", "conversationId": "<stable-per-session-id>" } with the key in the x-api-key header. Generate conversationId ONCE per browser session and reuse it for every turn (search → pick a number → enrich → "show all my contacts"). Do NOT rename it (conversation_id/sessionId) or derive it from an email that can be blank/shared — the workflow stores and reloads candidates keyed on this exact value, so an unstable id breaks number-picking and export even when search works.
+Render message as Markdown (the export turn returns a Markdown table + a fenced CSV block). On a 502/error, surface the real status instead of the generic fallback.
 Commit, push, redeploy (env changes require a redeploy).
-Acceptance test (replace placeholder locally; confirm it returns text, not a timeout):
+Acceptance test (replace placeholder locally; the first call may take up to ~60s — that's expected):
 
 bash
 
-curl -s --max-time 70 -X POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute \
+curl -s --max-time 75 -X POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute \
  -H "Content-Type: application/json" -H "x-api-key: <PUREMUON_API_KEY>" \
  -d '{"input":"Find the CMO of Vercel","conversationId":"test-123"}' | head -c 1500
-Then, same conversationId: {"input":"1",...} should enrich, {"input":"show all my contacts",...} should return the table.
+Then, SAME conversationId: {"input":"1",...} must return an enriched contact card (NOT "Row updated successfully"), and {"input":"show all my contacts",...} must return the table.
