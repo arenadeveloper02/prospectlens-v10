@@ -72,8 +72,9 @@ export async function POST(request: NextRequest) {
 
       const data = parseJsonLoose(raw) ?? {};
       // The execute API nests the workflow result under `output` — never read
-      // candidates/message at the top level.
+      // candidates/message at the top level: const out = data.output ?? data.
       const out = unwrapOutput(data);
+      // Assistant prose: out.message ?? out.row?.data?.message.
       const message = readMessage(out);
 
       if (!res.ok) {
@@ -89,6 +90,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Candidates come back either as out.candidates (array) OR as a JSON
+      // string at out.row.data.candidates_json — extractCandidates handles both.
       const contacts: ProspectContact[] = extractCandidates(out)
         .map((c, i) => toContact(c, i))
         .filter((c): c is ProspectContact => c !== null);

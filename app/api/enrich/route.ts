@@ -15,9 +15,10 @@ const UPSTREAM_ABORT_MS = 295_000;
 
 /**
  * Enrichment is driven purely by card selection. The client sends the picked
- * card numbers as a string (e.g. "1" or "1, 3") plus the SAME conversationId
- * returned by /api/identify. That selection string IS the workflow input —
- * there is NO selectedId field in the contract.
+ * card numbers as a BARE selection string — just numbers, e.g. "1" or "1, 3"
+ * (no sentence) — plus the SAME conversationId returned by /api/identify.
+ * That selection string IS the workflow input — there is NO selectedId field
+ * in the contract. Body: { inputs: { input: String(selection), conversationId } }.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -39,13 +40,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           results: [],
+          contacts: [],
           message: 'Select at least one contact and run a search first (missing selection or conversationId).',
         },
         { status: 400 },
       );
     }
 
-    // The picked card numbers, exactly as displayed — just the string.
+    // The picked card numbers, exactly as displayed — just the bare string.
     const input = String(selection);
 
     const { url, key } = getProspectLensConfig();
@@ -70,14 +72,16 @@ export async function POST(request: NextRequest) {
       console.log('PL enrich payload', res.status, raw.slice(0, 1500));
 
       const data = parseJsonLoose(raw) ?? {};
-      // Always read the workflow result under `output` — never top-level.
+      // Always read the workflow result under `output`: const out = data.output ?? data.
       const out = unwrapOutput(data);
+      // Assistant prose: out.message ?? out.row?.data?.message.
       const message = readMessage(out);
 
       if (!res.ok) {
         return NextResponse.json(
           {
             results: [],
+            contacts: [],
             message:
               message ||
               `The enrichment service returned HTTP ${res.status}. ${raw.slice(0, 300)}`,
@@ -86,21 +90,25 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Enriched people live in out.selected_details_json (fallback:
-      // out.candidates), each carrying work_email.
+      // Enriched people live in out.selected_details_json (array), with
+      // fallbacks to out.candidates and JSON.parse(out.row?.data?.candidates_json)
+      // — each entry carrying work_email.
       const results = toEnrichedPeople(out);
 
       if (results.length === 0 && !message) {
         return NextResponse.json(
           {
             results: [],
+            contacts: [],
             message: `Enrichment completed (HTTP ${res.status}) but returned no details. Raw: ${raw.slice(0, 300)}`,
           },
           { status: 502 },
         );
       }
 
-      return NextResponse.json({ results, message });
+      // `contacts` mirrors `results` so clients can read either key per the
+      // console contract ({ contacts, message }).
+      return NextResponse.json({ results, contacts: results, message });
     } catch (err) {
       const aborted = controller.signal.aborted;
       console.error('PL enrich fetch failed', {
@@ -111,6 +119,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           results: [],
+          contacts: [],
           message: aborted
             ? 'The enrichment ran longer than the 295-second budget and was stopped. Please try again.'
             : 'I could not reach the enrichment service (network error). Please try again in a moment.',
@@ -122,7 +131,7 @@ export async function POST(request: NextRequest) {
     }
   } catch {
     return NextResponse.json(
-      { results: [], message: 'Enrichment failed unexpectedly. Please try again.' },
+      { results: [], contacts: [], message: 'Enrichment failed unexpectedly. Please try again.' },
       { status: 500 },
     );
   }

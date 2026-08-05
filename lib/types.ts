@@ -110,7 +110,7 @@ export interface EnrichApiResponse {
 
 /**
  * One enriched person parsed from the workflow's selected_details_json
- * (fallback: candidates) — returned by POST /api/enrich.
+ * (fallbacks: candidates, row.data.candidates_json) — returned by POST /api/enrich.
  */
 export interface EnrichedPerson {
   id: number;
@@ -123,5 +123,7 @@ export interface EnrichedPerson {
 /** Response body from POST /api/enrich — selection-driven batch enrichment. */
 export interface EnrichBatchApiResponse {
   results: EnrichedPerson[];
+  /** Same list as `results` — provided so clients can read `contacts` per the console contract. */
+  contacts?: EnrichedPerson[];
   message: string;
 }

@@ -10,9 +10,13 @@ import type { EnrichedPerson, ProspectContact } from '@/lib/types';
  *
  * The workflow's Start block accepts ONLY `input` and `conversationId` — there
  * is NO selectedId field. The execute API returns the workflow result nested
- * under `output`, so responses are always read as `data.output ?? data` and
- * fields (candidates, message, selected_details_json) are read on that
- * unwrapped object — never top-level.
+ * under `output`, so responses are always read as `const out = data.output ?? data`
+ * and fields are read on that unwrapped object — never top-level.
+ *
+ * Candidate placement (both are handled):
+ *   - out.candidates                       — plain array
+ *   - out.row.data.candidates_json         — JSON string; parsed when present
+ * Assistant prose: out.message ?? out.row?.data?.message.
  */
 
 const DEFAULT_URL =
@@ -66,10 +70,17 @@ export function unwrapOutput(data: unknown): unknown {
   return data;
 }
 
-/** Reads out.message as a trimmed string ('' when absent). */
+/** out.row.data — the table-block wrapper some turns nest their payload in. */
+function rowData(out: unknown): unknown {
+  return getField(getField(out, 'row'), 'data');
+}
+
+/** Reads out.message ?? out.row?.data?.message as a trimmed string ('' when absent). */
 export function readMessage(out: unknown): string {
   const m = getField(out, 'message');
-  return typeof m === 'string' ? m.trim() : '';
+  if (typeof m === 'string' && m.trim()) return m.trim();
+  const rm = getField(rowData(out), 'message');
+  return typeof rm === 'string' ? rm.trim() : '';
 }
 
 function asStr(v: unknown): string {
@@ -90,12 +101,21 @@ function toArrayMaybeJson(value: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
 
-/** Reads out.candidates (array or JSON string), with one nested-level fallback. */
+/**
+ * Reads candidates from the unwrapped output. Handles BOTH placements the
+ * workflow uses: out.candidates (plain array, possibly a JSON string) and
+ * out.row.data.candidates_json (JSON string — parsed when present), plus one
+ * nested-level fallback for output/result wrappers.
+ */
 export function extractCandidates(out: unknown): unknown[] {
   const direct = toArrayMaybeJson(getField(out, 'candidates'));
   if (direct.length > 0) return direct;
+  const fromRow = toArrayMaybeJson(getField(rowData(out), 'candidates_json'));
+  if (fromRow.length > 0) return fromRow;
   const nested = toArrayMaybeJson(getField(getField(out, 'output'), 'candidates'));
   if (nested.length > 0) return nested;
+  const nestedRow = toArrayMaybeJson(getField(rowData(getField(out, 'output')), 'candidates_json'));
+  if (nestedRow.length > 0) return nestedRow;
   return toArrayMaybeJson(getField(getField(out, 'result'), 'candidates'));
 }
 
@@ -126,11 +146,13 @@ export function toContact(rec: unknown, index: number): ProspectContact | null {
 
 /**
  * Reads enriched people from out.selected_details_json (array or JSON string),
- * falling back to out.candidates, pulling work_email for each entry.
+ * falling back to out.candidates and then out.row.data.candidates_json,
+ * pulling work_email for each entry.
  */
 export function toEnrichedPeople(out: unknown): EnrichedPerson[] {
   let list = toArrayMaybeJson(getField(out, 'selected_details_json'));
   if (list.length === 0) list = toArrayMaybeJson(getField(out, 'candidates'));
+  if (list.length === 0) list = toArrayMaybeJson(getField(rowData(out), 'candidates_json'));
   const results: EnrichedPerson[] = [];
   list.forEach((item, i) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return;
