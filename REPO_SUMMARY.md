@@ -1,24 +1,21 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T12:12:28.396Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T12:38:18.011Z.
 
 ## Overview
 
-Prospect Lens Console — conversational console for finding, selecting, and enriching professional contacts, with structured candidate cards, upstream timing diagnostics, and a 60s function budget for slow searches.
+Prospect Lens Console — conversational console for finding, selecting, and enriching professional contacts. This edit raises the serverless function time budget to the Vercel Pro maximum (300s) so deep multi-lookup searches never die to a platform timeout.
 
 **Repository:** `prospectlens-v10`  
 **File count:** 35
 
 ## Features
 
-- Chat console backed by the Prospect Lens workflow (body kept EXACTLY { input, conversationId } with x-api-key header)
-- Structured candidate cards parsed from the workflow's candidates[] array — clickable numbered cards trigger enrichment
-- Upstream timing + status logging to distinguish our AbortController, platform timeouts, and workflow errors in Vercel logs
-- maxDuration 60 on every API route plus vercel.json function config; outbound fetch aborts at ~58s
-- Stable per-browser-session conversationId cookie reused across every turn
-- Quick-pick number buttons and quick-phrase chips
-- Markdown rendering with tables, candidate cards, and CSV export blocks
-- Arena email gate with access-denied page
+- Serverless function maxDuration raised to 300s (Vercel Pro/Enterprise cap) in every app/api/**/route.ts
+- vercel.json functions config pinned to maxDuration 300 for all API routes
+- Outbound workflow fetch guarded by a ~295s AbortController so it never dangles past the platform limit
+- Timing + payload instrumentation preserved for Vercel log debugging
+- Chat transcript logging to Postgres via Prisma (best-effort, never blocks the chat)
 
 ## Tech Stack
 
@@ -136,25 +133,20 @@ Prospect Lens Console — conversational console for finding, selecting, and enr
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T12:12:28.396Z
-- **Request:** Prospect Lens v10 — searches intermittently time out ("didn't fully complete") and candidate cards don't render. Parsing is already fixed (Stripe search shows the correct message). Do NOT change the workflow.
+- **Updated at:** 2026-08-05T12:38:18.011Z
+- **Request:** Prospect Lens v10 — raise the serverless function time limit to the maximum.
 
-Env vars (Vercel → Settings → Environment Variables; never hard-code):
+There is no "unlimited" on Vercel; set the highest your plan allows.
 
-PUREMUON_URL = https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute
-PUREMUON_API_KEY = <PUREMUON_API_KEY>
-Tasks
-
-Confirm the Vercel plan and raise the function limit. On Hobby, functions hard-cap at 10s and maxDuration is ignored — that alone explains why slower searches (Vercel CMO, Notion VP Sales) fail while fast ones (Stripe) succeed. Ensure the project is on a plan that allows ≥60s, then set export const maxDuration = 60; in every app/api/**/route.ts AND maxDuration: 60 in vercel.json. Give the outbound fetch an AbortController of ~58s. If 60s still isn't enough for the deepest searches, either move the call to a background/streaming pattern or raise the plan's max duration.
-Verify the timeout is upstream, not our fetch. Add a duration log around the fetch (console.time/Date.now() delta) and log res.status. Confirm in Vercel logs whether failing turns are (a) hitting our AbortController, (b) hitting Vercel's platform limit, or (c) the workflow itself erroring — then fix accordingly.
-Render the candidate CARDS, not just the lead-in sentence. The search response includes both a short message AND a structured candidates array (fields include name, title, company, linkedin, and a numeric index). Today only the lead-in sentence shows. Map each candidates[] item to a numbered card UI so users can click 1/2/3. Locate the array by logging the raw upstream JSON (first ~1500 chars) and reading candidates from wherever the object sits (e.g. output.candidates or a JSON string in the agent content that must be JSON.parsed).
-Keep the request body EXACTLY { "input": "<user msg>", "conversationId": "<stable-per-session-id>" } with the key in x-api-key. Generate conversationId once per browser session and reuse it across every turn; the workflow stores candidates keyed on it, so number-picking/export break if it changes.
-Commit, push, redeploy.
-Acceptance test (the slow searches are the ones that must pass; allow up to ~60s):
+Confirm the Vercel plan. Hobby caps at 10s (and ignores maxDuration). Pro/Enterprise allow up to 300s. Upgrade to Pro if on Hobby — otherwise slow searches will always fail.
+In every app/api/**/route.ts, add export const maxDuration = 300; (use 60 if on the lower Pro cap).
+In vercel.json, set { "functions": { "app/api/**/route.ts": { "maxDuration": 300 } } }.
+Give the outbound fetch an AbortController of ~295s so it never dangles past the platform limit.
+Commit, push, redeploy (function-config changes require a redeploy).
+Verify:
 
 bash
 
-curl -s --max-time 75 -w "\n[%{time_total}s]\n" -X POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute \
+curl -s --max-time 310 -w "\n[%{time_total}s]\n" -X POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute \
  -H "Content-Type: application/json" -H "x-api-key: <PUREMUON_API_KEY>" \
  -d '{"input":"Find the CMO of Vercel","conversationId":"test-123"}' | head -c 1500
-If [time_total] prints ~30–55s and returns candidates, the fix is a plan/maxDuration change — not code.
