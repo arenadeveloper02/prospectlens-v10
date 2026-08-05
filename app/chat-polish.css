@@ -323,6 +323,193 @@
   letter-spacing: 0.25px;
 }
 
+/* ---------- Multi-select + enrich (pre-enrichment cards) ---------- */
+.cand-card {
+  cursor: pointer;
+  user-select: none;
+}
+
+.cand-card-enriched {
+  cursor: default;
+}
+
+.cand-card-selected {
+  border-color: rgba(26, 115, 232, 0.9);
+  background: linear-gradient(160deg, rgba(26, 115, 232, 0.2), rgba(179, 100, 215, 0.1));
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.45), 0 0 30px rgba(26, 115, 232, 0.35);
+}
+
+.cand-card-enriching {
+  opacity: 0.85;
+}
+
+.cand-check {
+  width: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cand-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ds-color-brand-default, #1A73E8);
+  cursor: pointer;
+}
+
+.cand-check-done {
+  color: #89deb5;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.cand-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-spacing-component-xs, 8px);
+  padding: 2px 2px 0;
+}
+
+.cand-count {
+  font-size: 12px;
+  color: #a3adc4;
+  letter-spacing: 0.25px;
+}
+
+.cand-toolbar-actions {
+  display: flex;
+  gap: var(--ds-spacing-component-xs, 8px);
+}
+
+.cand-tool-btn {
+  padding: 5px 12px;
+  border-radius: var(--ds-radius-pill, 80px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.07);
+  color: #cdd5e6;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--ds-motion-duration-fast, 100ms)
+    var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.cand-tool-btn:hover:not(:disabled) {
+  border-color: rgba(26, 115, 232, 0.6);
+  background: rgba(26, 115, 232, 0.18);
+  color: #ffffff;
+}
+
+.cand-tool-btn:disabled {
+  opacity: var(--ds-opacity-disabled, 0.38);
+  cursor: default;
+}
+
+.cand-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-component-xs, 8px);
+}
+
+.cand-enrich-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 0 2px;
+  background: linear-gradient(180deg, transparent, rgba(7, 11, 22, 0.7));
+}
+
+.cand-enrich-btn {
+  height: 40px;
+  padding: 0 24px;
+  border: none;
+  border-radius: var(--ds-radius-pill, 80px);
+  background: linear-gradient(135deg, var(--ds-color-graphic-purple-default, #B364D7), var(--ds-color-brand-default, #1A73E8));
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(179, 100, 215, 0.35);
+  transition: all var(--ds-motion-duration-fast, 100ms)
+    var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.cand-enrich-btn:hover:not(:disabled) {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 26px rgba(26, 115, 232, 0.45);
+}
+
+.cand-enrich-btn:disabled {
+  opacity: var(--ds-opacity-disabled, 0.38);
+  cursor: default;
+  transform: none;
+}
+
+@keyframes cand-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cand-spinner {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: var(--ds-radius-full, 9999px);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: var(--ds-color-brand-default, #1A73E8);
+  animation: cand-spin 0.8s linear infinite;
+}
+
+.cand-email {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-component-xs, 8px);
+  margin-top: 4px;
+  min-width: 0;
+}
+
+.cand-email-text {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #89deb5;
+  overflow-wrap: anywhere;
+}
+
+.cand-copy {
+  padding: 3px 10px;
+  border-radius: var(--ds-radius-pill, 80px);
+  border: 1px solid rgba(59, 200, 132, 0.5);
+  background: rgba(59, 200, 132, 0.12);
+  color: #89deb5;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--ds-motion-duration-fast, 100ms)
+    var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.cand-copy:hover {
+  background: rgba(59, 200, 132, 0.28);
+  color: #ffffff;
+}
+
+.cand-noemail {
+  margin-top: 4px;
+  font-size: 12px;
+  font-style: italic;
+  color: #7c86a0;
+}
+
 /* ---------- Mobile pass (~375px) ---------- */
 @media (max-width: 480px) {
   .app {
@@ -410,6 +597,18 @@
     flex-direction: row;
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .cand-check {
+    width: 20px;
+  }
+
+  .cand-enrich-bar {
+    justify-content: stretch;
+  }
+
+  .cand-enrich-btn {
+    width: 100%;
   }
 
   .md-table th,

@@ -10,7 +10,8 @@ import {
   parseWorkflowResponse,
   redactPhones,
 } from '@/lib/prospectlens';
-import type { CandidateCard } from '@/lib/types';
+import { extractEnrichments } from '@/lib/enrich-extract';
+import type { CandidateCard, EnrichmentResult } from '@/lib/types';
 import { ARENA_EMAIL_COOKIE_NAME } from '@/lib/arena-email-constants';
 
 export const dynamic = 'force-dynamic';
@@ -105,6 +106,7 @@ export async function POST(request: NextRequest) {
 
     let reply: string | null = null;
     let candidates: CandidateCard[] = [];
+    let enrichments: EnrichmentResult[] = [];
     let errorNotice: string | null = null;
     let upstreamError: string | null = null;
     let upstreamStatus = 0;
@@ -160,6 +162,14 @@ export async function POST(request: NextRequest) {
         candidates = extractWorkflowCandidates(raw);
         if (candidates.length > 0) {
           console.log('PL candidates parsed', candidates.length);
+        }
+        // Enrichment outcomes: the enrich turn carries { id, email,
+        // email_status } entries — surface them so the UI merges verified
+        // emails back onto the SAME cards instead of rendering a new list.
+        // Pure parsing of the response we already have — no workflow change.
+        enrichments = extractEnrichments(raw);
+        if (enrichments.length > 0) {
+          console.log('PL enrichments parsed', enrichments.length);
         }
         if (!reply) {
           console.error('PL upstream unreadable', upstreamStatus, raw.slice(0, 1500));
@@ -220,7 +230,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ reply: safeReply, candidates });
+    return NextResponse.json({ reply: safeReply, candidates, enrichments });
   } catch {
     return NextResponse.json({ reply: FRIENDLY_FAILURE }, { status: 500 });
   }

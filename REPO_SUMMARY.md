@@ -1,23 +1,21 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T14:23:20.753Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T14:39:47.835Z.
 
 ## Overview
 
-Prospect Lens Console — conversational prospect search with rich candidate cards (avatar, LinkedIn, badges) parsed from the workflow's Identify block.
+Prospect Lens Console — conversational prospect search with pre-enrichment candidate cards, multi-select, and one-shot Apollo enrichment merged back onto the same cards.
 
 **Repository:** `prospectlens-v10`  
-**File count:** 35
+**File count:** 36
 
 ## Features
 
-- Chat console with stable per-session conversationId
-- Structured candidate cards parsed from the Identify block (photo, LinkedIn, seniority/confidence badges)
-- Initials avatar fallback when photo_url is missing or broken
-- Numbered Select affordance that sends the stored candidate id back to the workflow
-- Present Cards agent text rendered as the lead-in above the cards
-- CSV export rendering with copy/download
-- Arena email gate with access-denied page
+- Identify results render immediately as selectable candidate cards (before enrichment)
+- Multi-select with Select all / Clear controls and a sticky Enrich N selected button
+- Single enrich request for all selected ids (enrich: <ids>) on the same conversationId
+- Per-card loading spinner during enrichment; results merged in place (email + copy, or muted No email available)
+- Dark-enterprise glass cards with glowing selected borders and purple→blue gradient pills
 
 ## Tech Stack
 
@@ -72,6 +70,7 @@ Prospect Lens Console — conversational prospect search with rich candidate car
 
 - `lib/arena-email-constants.ts`
 - `lib/arena-email.ts`
+- `lib/enrich-extract.ts`
 - `lib/prisma.ts`
 - `lib/prospectlens.ts`
 - `lib/types.ts`
@@ -120,6 +119,7 @@ Prospect Lens Console — conversational prospect search with rich candidate car
 - `components/arena-email-provider.tsx`
 - `lib/arena-email-constants.ts`
 - `lib/arena-email.ts`
+- `lib/enrich-extract.ts`
 - `lib/prisma.ts`
 - `lib/prospectlens.ts`
 - `lib/types.ts`
@@ -135,18 +135,31 @@ Prospect Lens Console — conversational prospect search with rich candidate car
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T14:23:20.753Z
-- **Request:** Prospect Lens v10 — render candidate cards with profile picture + LinkedIn link.
+- **Updated at:** 2026-08-05T14:39:47.835Z
+- **Request:** Prospect Lens — show identified contacts as selectable cards BEFORE enrichment, with multi-select + an Enrich button.
 
-The search response already includes a candidates array (from the Identify step). Each item has: id, name, title, company, company_domain, location, seniority_level, confidence, photo_url, linkedin_url, summary. Today the UI only shows the intro sentence — it must map this array into cards.
+Problem to fix: Right now the identified contacts do not render before enrichment. Cards only appear after Apollo enrichment runs. I want the identify results to appear as a card list immediately, let the user select multiple, and only then enrich the selected ones.
 
-From the execute response, read the candidates array (it's on the Identify block's output — log the raw JSON once to confirm the exact path, e.g. output["Identify"].candidates). Use the Present Cards text as the section heading above the cards.
-Render one card per candidate:
-Profile picture: <img src={photo_url}> in a rounded avatar. photo_url can be null — when it's empty or the image fails to load (onError), fall back to a circular initials avatar (first letters of name). Never show a broken image icon.
+Do not change any workflow logic, the identify search, or the enrichment call. This is a frontend/UI change only. Do not alter layout structure beyond adding the pre-enrichment card grid, selection, and Enrich button. Preserve all existing content and functionality.
+
+1. Render identify results as cards (pre-enrichment). The identify/search response already returns a candidates array. Each item has: id, name, title, company, company_domain, location, seniority_level, confidence, photo_url, linkedin_url, summary. As soon as this array arrives, render it as a card grid — do NOT wait for enrichment. Hide the plain text intro once cards are present.
+
+Each card shows:
+
+Profile picture — photo_url in a rounded avatar with a soft ring. photo_url can be null: on empty or image onError, fall back to a circular initials avatar generated from name. Never show a broken image.
 Name (bold), title, company, location.
 Seniority and confidence as small badges.
-LinkedIn link: if linkedin_url is present, render a "View LinkedIn" button/icon opening linkedin_url in a new tab (target="_blank" rel="noopener"). Hide the link if linkedin_url is null.
-A numbered "Select" affordance showing the candidate's id.
-Never show email or phone here (none exists at this stage).
-On select, send { "input": "<id number>", "conversationId": "<same session id>" } — the workflow matches by stored id, so keep conversationId stable across the session.
-Apply the workspace dark-enterprise design language: rounded 16–20px glass cards, thin glowing borders, avatar with a soft ring, pill "View LinkedIn" button with the purple→blue gradient, muted secondary text for title/company/location.
+LinkedIn — if linkedin_url is present, a pill "View LinkedIn" button opening it in a new tab (target="_blank" rel="noopener"); hide the button if linkedin_url is null.
+No email at this stage (none exists yet).
+2. Multi-select + Enrich button.
+
+Each card is selectable via a checkbox (or click-to-toggle) with a glowing border on selected cards.
+Add "Select all" / "Clear" controls above the grid.
+A sticky "Enrich N selected" button below the grid, disabled when nothing is selected.
+On click, send only the selected candidates to the existing enrich step in ONE request, keeping the same conversationId for the session so the workflow can match candidates by their stored id: { "input": "enrich: <comma-separated selected ids>", "conversationId": "<same session id>" } (Match the exact shape the enrich branch already expects — it keys off the candidate id.)
+Show a per-card loading spinner on the selected cards only while enrichment runs; keep unselected cards untouched.
+3. Merge enrichment results back onto the SAME cards. When the enrich response returns, update each selected card in place — do not render a separate list. For each returned { id, email, email_status }:
+
+If email is present → show it with a copy button.
+If email_status is unavailable / no email → show a muted "No email available". Apollo-only: no personal or guessed-email fallback. Do not show phone.
+Design: Apply the dark-enterprise design language — deep navy background, rounded 16–20px glass cards with thin glowing borders, avatar soft ring, purple→blue gradient pill buttons with soft hover glow, muted secondary text, 8px spacing system.

@@ -20,6 +20,20 @@ export interface CandidateCard {
   photoUrl?: string;
   /** One-line candidate summary from the workflow. */
   summary?: string;
+  /** Verified email merged in AFTER enrichment (Apollo-only — never guessed). */
+  email?: string;
+  /** Enrichment outcome for this card (e.g. "verified", "unavailable"). Present once enrichment ran for this candidate. */
+  emailStatus?: string;
+}
+
+/** One enrichment outcome returned by the enrich turn — merged onto the matching card by id. */
+export interface EnrichmentResult {
+  /** Stored candidate id the workflow keys enrichment on. */
+  id: number;
+  /** Verified email when Apollo found one. */
+  email?: string;
+  /** Raw email_status from the workflow (e.g. "verified", "unavailable"). */
+  emailStatus?: string;
 }
 
 export interface UiMessage {
@@ -37,6 +51,8 @@ export interface ChatApiResponse {
   reply: string;
   /** Structured candidates from the search turn, when the workflow returned them. */
   candidates?: CandidateCard[];
+  /** Enrichment outcomes from the enrich turn ({ id, email, emailStatus }) — merged onto existing cards client-side. */
+  enrichments?: EnrichmentResult[];
   /** Machine-readable upstream failure code (e.g. "upstream_unreadable"). */
   error?: string;
   /** HTTP status returned by the workflow service when the call failed. */
