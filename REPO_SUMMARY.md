@@ -1,23 +1,22 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T13:24:54.209Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T14:23:20.753Z.
 
 ## Overview
 
-Prospect Lens Console — conversational prospect search with rich candidate cards (photo, LinkedIn, badges) parsed from the workflow's Identify block.
+Prospect Lens Console — conversational prospect search with rich candidate cards (avatar, LinkedIn, badges) parsed from the workflow's Identify block.
 
 **Repository:** `prospectlens-v10`  
 **File count:** 35
 
 ## Features
 
-- Chat console driven by the Prospect Lens workflow
-- Structured candidate cards with profile photo + initials fallback
-- View LinkedIn pill button (purple→blue gradient) opening in a new tab
-- Numbered Select affordance sending the candidate's stored id
-- Seniority and confidence badges, location and summary lines
-- Stable per-session conversationId for search → select → enrich
-- CSV export blocks and markdown tables
+- Chat console with stable per-session conversationId
+- Structured candidate cards parsed from the Identify block (photo, LinkedIn, seniority/confidence badges)
+- Initials avatar fallback when photo_url is missing or broken
+- Numbered Select affordance that sends the stored candidate id back to the workflow
+- Present Cards agent text rendered as the lead-in above the cards
+- CSV export rendering with copy/download
 - Arena email gate with access-denied page
 
 ## Tech Stack
@@ -136,7 +135,7 @@ Prospect Lens Console — conversational prospect search with rich candidate car
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T13:24:54.209Z
+- **Updated at:** 2026-08-05T14:23:20.753Z
 - **Request:** Prospect Lens v10 — render candidate cards with profile picture + LinkedIn link.
 
 The search response already includes a candidates array (from the Identify step). Each item has: id, name, title, company, company_domain, location, seniority_level, confidence, photo_url, linkedin_url, summary. Today the UI only shows the intro sentence — it must map this array into cards.
