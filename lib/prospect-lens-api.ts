@@ -17,7 +17,7 @@ import type { EnrichedPerson, ProspectContact } from '@/lib/types';
 
 const DEFAULT_URL =
   'https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute';
-const DEFAULT_KEY = 'sk-arena-3f9c2a7e5b1d48609a2f6c8e4d0b7a12';
+const DEFAULT_KEY = 'sk-sim-WdwOSPQf0WHp5JiHs1jIGgj-kJ4ypP3q';
 
 export interface ProspectLensConfig {
   url: string;

@@ -16,4 +16,6 @@ model ChatMessage {
   content        String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @default(now()) @updatedAt
+
+  @@index([conversationId])
 }

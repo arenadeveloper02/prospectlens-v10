@@ -1,6 +1,6 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T16:31:42.232Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T16:41:06.540Z.
 
 ## Overview
 
@@ -12,10 +12,10 @@ Prospect Lens Console — a conversational console for finding, selecting, and e
 ## Features
 
 - Conversational prospect search console
-- Structured candidate cards with selection-driven enrichment
-- Unified PROSPECT_LENS_URL / PROSPECT_LENS_API_KEY workflow configuration across all API routes
-- Chat transcript logging to Postgres via Prisma
-- Arena email gating for embedded iframe access
+- Structured candidate cards from /api/identify
+- Selection-driven email enrichment via /api/enrich
+- Chat transcript logging to Postgres (best-effort)
+- Arena email gate with cross-origin iframe support
 
 ## Tech Stack
 
@@ -143,6 +143,6 @@ Prospect Lens Console — a conversational console for finding, selecting, and e
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T16:31:42.232Z
+- **Updated at:** 2026-08-05T16:41:06.540Z
 - **Request:** PROSPECT_LENS_URL=https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute
-PROSPECT_LENS_API_KEY=sk-arena-3f9c2a7e5b1d48609a2f6c8e4d0b7a12
+PROSPECT_LENS_API_KEY=sk-sim-WdwOSPQf0WHp5JiHs1jIGgj-kJ4ypP3q
