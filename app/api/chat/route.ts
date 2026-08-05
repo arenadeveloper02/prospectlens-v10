@@ -4,12 +4,12 @@ import { prisma } from '@/lib/prisma';
 import {
   describeWorkflowError,
   extractWorkflowCandidates,
-  getWorkflowConfig,
   isTableStatus,
   looksLikeInternalPayload,
   parseWorkflowResponse,
   redactPhones,
 } from '@/lib/prospectlens';
+import { getProspectLensConfig } from '@/lib/prospect-lens-api';
 import { extractEnrichments } from '@/lib/enrich-extract';
 import type { CandidateCard, EnrichmentResult } from '@/lib/types';
 import { ARENA_EMAIL_COOKIE_NAME } from '@/lib/arena-email-constants';
@@ -97,7 +97,10 @@ export async function POST(request: NextRequest) {
       // logging is best-effort; never block the chat
     }
 
-    const { url, key } = getWorkflowConfig();
+    // Single source of truth for the workflow endpoint + key:
+    // PROSPECT_LENS_URL / PROSPECT_LENS_API_KEY (with hard defaults) — the
+    // SAME config used by /api/identify and /api/enrich.
+    const { url, key } = getProspectLensConfig();
     const controller = new AbortController();
     // Abort at ~295s, just under the 300s function budget, so we always return
     // our own JSON response instead of hitting a hard Vercel timeout. Real
