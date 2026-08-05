@@ -333,32 +333,83 @@ export function parseWorkflowResponse(raw: string): string | null {
 
   // Standard path: plain JSON body. Prefer the NAMED AGENT blocks (Format
   // Export → Apollo Contact Finder → Present Cards) so trailing table-status
-  // strings never win, then the explicit multi-branch pick, then the
-  // recursive extractor for anything exotic.
+  // strings never win, then fall back to the generic multi-branch pick and
+  // finally the recursive scan.
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(trimmed);
-    const agent = pickAgentBlockContent(parsed);
-    if (agent) return agent;
-    const picked = pickWorkflowMessage(parsed);
-    if (picked && !looksLikeInternalPayload(picked)) return picked;
-    return extractReply(parsed);
+    parsed = JSON.parse(trimmed);
   } catch {
-    return null;
+    // Not JSON at all — a bare prose body may be the answer itself.
+    return !looksLikeInternalPayload(trimmed) && !isTableStatus(trimmed) ? trimmed : null;
   }
+  const agent = pickAgentBlockContent(parsed);
+  if (agent) return agent;
+  const picked = pickWorkflowMessage(parsed);
+  if (picked && !looksLikeInternalPayload(picked)) return picked;
+  return extractReply(parsed);
 }
 
 /* ------------------------------------------------------------------ */
-/* Structured candidate extraction                                     */
+/*  Structured candidates — Identify.candidates[]                      */
 /* ------------------------------------------------------------------ */
 
+function asNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() && !Number.isNaN(Number(value.trim()))) {
+    return Number(value.trim());
+  }
+  return undefined;
+}
+
+/** Normalizes confidence (0.92, 92, "92%", "high") into badge text. */
+function formatConfidence(value: unknown): string | undefined {
+  const num = asNumber(value);
+  if (num !== undefined) {
+    const pct = num > 0 && num <= 1 ? Math.round(num * 100) : Math.round(num);
+    if (pct >= 0 && pct <= 100) return `${pct}%`;
+    return String(num);
+  }
+  return asText(value);
+}
+
 /**
- * Depth-limited recursive search for a `candidates` array anywhere in the
- * workflow payload — including JSON embedded inside agent content strings
- * (e.g. output.candidates, result.output.candidates, or a stringified
- * { mode, selected_ids, candidates, message } object).
+ * Maps one Identify.candidates[] entry —
+ * { id, name, title, company, location, seniority_level, confidence,
+ *   linkedin_url, photo_url, summary } — into a CandidateCard. Email and
+ * phone are NEVER read here: they don't exist at the search stage and must
+ * never render on cards.
  */
-function findCandidatesArray(value: unknown, depth = 0): unknown[] | null {
-  if (depth > 7 || value === null || value === undefined) return null;
+function toCandidateCard(item: unknown, fallbackIndex: number): CandidateCard | null {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+  const rec = item as Record<string, unknown>;
+  const name = asText(rec.name) ?? asText(rec.full_name) ?? asText(rec.fullName);
+  if (!name) return null;
+  const idNum = asNumber(rec.id) ?? asNumber(rec.index);
+  const id = idNum !== undefined && idNum >= 1 ? Math.floor(idNum) : undefined;
+  return {
+    index: id ?? fallbackIndex,
+    id,
+    name,
+    title: asText(rec.title) ?? asText(rec.role) ?? '',
+    company: asText(rec.company) ?? asText(rec.organization) ?? '',
+    linkedin: asText(rec.linkedin_url) ?? asText(rec.linkedinUrl) ?? asText(rec.linkedin),
+    location: asText(rec.location),
+    seniority: asText(rec.seniority_level) ?? asText(rec.seniorityLevel) ?? asText(rec.seniority),
+    confidence: formatConfidence(rec.confidence),
+    photoUrl: asText(rec.photo_url) ?? asText(rec.photoUrl),
+    summary: asText(rec.summary),
+  };
+}
+
+/**
+ * Depth-limited walk that collects EVERY `candidates` array in the payload —
+ * whether the workflow returns a combined { message, candidates } object on
+ * the search branch, or the array lives on the Identify block's per-block
+ * output (blocks / logs / output containers, keyed objects or arrays of
+ * block entries). JSON embedded inside strings is parsed and searched too.
+ */
+function collectCandidateArrays(value: unknown, depth: number, out: CandidateCard[][]): void {
+  if (depth > 8 || value === null || value === undefined) return;
 
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -367,65 +418,42 @@ function findCandidatesArray(value: unknown, depth = 0): unknown[] | null {
       (trimmed.startsWith('[') && trimmed.endsWith(']'))
     ) {
       try {
-        return findCandidatesArray(JSON.parse(trimmed) as unknown, depth + 1);
+        collectCandidateArrays(JSON.parse(trimmed) as unknown, depth + 1, out);
       } catch {
-        return null;
+        // Not embedded JSON — ignore.
       }
     }
-    return null;
+    return;
   }
 
   if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findCandidatesArray(item, depth + 1);
-      if (found) return found;
-    }
-    return null;
+    for (const item of value) collectCandidateArrays(item, depth + 1, out);
+    return;
   }
 
   if (typeof value === 'object') {
     const record = value as Record<string, unknown>;
-    const own = record['candidates'];
-    if (Array.isArray(own) && own.length > 0) return own;
-    for (const child of Object.values(record)) {
-      const found = findCandidatesArray(child, depth + 1);
-      if (found) return found;
+    const raw = record['candidates'];
+    if (Array.isArray(raw)) {
+      const cards: CandidateCard[] = [];
+      raw.forEach((item, i) => {
+        const card = toCandidateCard(item, i + 1);
+        if (card) cards.push(card);
+      });
+      if (cards.length > 0) out.push(cards);
+    }
+    for (const [key, child] of Object.entries(record)) {
+      if (key === 'candidates') continue;
+      collectCandidateArrays(child, depth + 1, out);
     }
   }
-
-  return null;
-}
-
-function toCandidateCard(item: unknown, fallbackIndex: number): CandidateCard | null {
-  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
-  const record = item as Record<string, unknown>;
-  const name =
-    asText(record['name']) ?? asText(record['full_name']) ?? asText(record['fullName']);
-  if (!name) return null;
-  const title = asText(record['title']) ?? asText(record['role']) ?? '';
-  const company =
-    asText(record['company']) ??
-    asText(record['organization']) ??
-    asText(record['company_name']) ??
-    '';
-  const linkedin =
-    asText(record['linkedin']) ??
-    asText(record['linkedin_url']) ??
-    asText(record['linkedinUrl']);
-  const rawIndex = record['index'] ?? record['id'] ?? record['number'];
-  let index = fallbackIndex;
-  if (typeof rawIndex === 'number' && Number.isFinite(rawIndex) && rawIndex >= 1) {
-    index = Math.floor(rawIndex);
-  } else if (typeof rawIndex === 'string' && /^\d{1,2}$/.test(rawIndex.trim())) {
-    index = Number(rawIndex.trim());
-  }
-  return { index, name, title, company, linkedin };
 }
 
 /**
- * Extracts the structured candidates[] array from the raw upstream body
- * (plain JSON or SSE). Returns [] when no candidates are present — enrich
- * and export turns legitimately have none.
+ * Extracts structured candidates from the raw execute response. The visible
+ * message (Present Cards.content) and the card data (Identify.candidates)
+ * are SEPARATE — this reads the candidates array wherever it lives so the UI
+ * can render one rich card per entry under the Present Cards heading.
  */
 export function extractWorkflowCandidates(raw: string): CandidateCard[] {
   const trimmed = raw.trim();
@@ -433,7 +461,7 @@ export function extractWorkflowCandidates(raw: string): CandidateCard[] {
 
   const roots: unknown[] = [];
   if (trimmed.startsWith('data:') || trimmed.includes('\ndata:')) {
-    roots.push(...parseSseChunks(trimmed).slice().reverse());
+    roots.push(...parseSseChunks(trimmed));
   } else {
     try {
       roots.push(JSON.parse(trimmed) as unknown);
@@ -442,57 +470,63 @@ export function extractWorkflowCandidates(raw: string): CandidateCard[] {
     }
   }
 
-  for (const root of roots) {
-    const arr = findCandidatesArray(root);
-    if (arr) {
-      const cards = arr
-        .map((item, i) => toCandidateCard(item, i + 1))
-        .filter((c): c is CandidateCard => c !== null)
-        .slice(0, 10);
-      if (cards.length > 0) return cards;
-    }
+  const found: CandidateCard[][] = [];
+  for (const root of roots) collectCandidateArrays(root, 0, found);
+  if (found.length === 0) return [];
+
+  // Prefer the richest array — the Identify block carries the full set.
+  let best: CandidateCard[] = [];
+  for (const cards of found) {
+    if (cards.length > best.length) best = cards;
   }
-  return [];
+
+  // Dedupe by id + name and cap at 10 cards.
+  const seen = new Set<string>();
+  const out: CandidateCard[] = [];
+  for (const card of best) {
+    const key = `${card.id ?? card.index}-${card.name.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(card);
+    if (out.length >= 10) break;
+  }
+  return out;
 }
 
-/**
- * Builds a debuggable, user-safe error message from a non-200 workflow
- * response. Extracts an `error` / `message` / `detail` string from a JSON
- * body when possible, otherwise includes a short snippet of the raw body.
- */
+/* ------------------------------------------------------------------ */
+/*  Errors & redaction                                                 */
+/* ------------------------------------------------------------------ */
+
+/** Friendly, user-safe description of an upstream failure status. */
 export function describeWorkflowError(status: number, raw: string): string {
-  let detail = '';
-  const trimmed = raw.trim();
-  if (trimmed) {
-    let parsed: unknown = null;
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
-      parsed = null;
-    }
-    if (parsed && typeof parsed === 'object') {
-      detail =
-        asText(getField(parsed, 'error')) ??
-        asText(getField(parsed, 'message')) ??
-        asText(getField(parsed, 'detail')) ??
-        asText(getField(getField(parsed, 'error'), 'message')) ??
-        '';
-    } else {
-      detail = trimmed.slice(0, 160);
-    }
+  void raw; // full payload is logged server-side; never surfaced to the user
+  if (status === 401 || status === 403) {
+    return 'The search service rejected this request (authentication issue). Please try again in a moment.';
   }
-  const suffix = detail ? ` — "${detail.slice(0, 200)}"` : '';
-  return `The search service returned an error (HTTP ${status}${suffix}). Please try again in a moment.`;
+  if (status === 404) {
+    return 'The search service endpoint could not be found. Please try again in a moment.';
+  }
+  if (status === 429) {
+    return 'The search service is handling a lot of requests right now. Please wait a few seconds and try again.';
+  }
+  if (status >= 500) {
+    return `The search service hit an internal error (HTTP ${status}). Please try again in a moment.`;
+  }
+  return `The search service returned an unexpected response (HTTP ${status}). Please try again in a moment.`;
 }
 
 /**
- * Redacts phone-number-looking sequences (9–15 digits with separators) so
- * personal phone numbers never surface in the chat. Emails and LinkedIn URLs
- * are untouched.
+ * Defense in depth: phone numbers must never reach the chat. Replaces
+ * phone-like digit runs (8–15 digits with common separators) while leaving
+ * URLs and ids untouched.
  */
 export function redactPhones(text: string): string {
-  return text.replace(/\+?[\d(][\d\s().-]{7,}\d/g, (match) => {
-    const digits = match.replace(/\D/g, '');
-    return digits.length >= 9 && digits.length <= 15 ? '[phone hidden]' : match;
-  });
+  return text.replace(
+    /(^|[^\w/.=&-])(\+?\d[\d\s().-]{7,}\d)/g,
+    (full: string, prefix: string, num: string) => {
+      const digits = num.replace(/\D/g, '');
+      if (digits.length >= 8 && digits.length <= 15) return `${prefix}[phone hidden]`;
+      return full;
+    },
+  );
 }

@@ -1,21 +1,23 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T12:38:18.011Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T12:59:30.316Z.
 
 ## Overview
 
-Prospect Lens Console — conversational console for finding, selecting, and enriching professional contacts. This edit raises the serverless function time budget to the Vercel Pro maximum (300s) so deep multi-lookup searches never die to a platform timeout.
+Prospect Lens Console — conversational console for finding, selecting, and enriching professional contacts, now with rich structured candidate cards (photo, location, seniority and confidence badges) parsed from the Identify block's candidates array.
 
 **Repository:** `prospectlens-v10`  
 **File count:** 35
 
 ## Features
 
-- Serverless function maxDuration raised to 300s (Vercel Pro/Enterprise cap) in every app/api/**/route.ts
-- vercel.json functions config pinned to maxDuration 300 for all API routes
-- Outbound workflow fetch guarded by a ~295s AbortController so it never dangles past the platform limit
-- Timing + payload instrumentation preserved for Vercel log debugging
-- Chat transcript logging to Postgres via Prisma (best-effort, never blocks the chat)
+- Chat console backed by the Prospect Lens workflow
+- Rich candidate cards: name, title, company, location, seniority badge, confidence badge, LinkedIn link, and photo
+- Card data read from Identify.candidates (or a combined { message, candidates } payload) — Present Cards text renders as the heading above the cards
+- Selection sends the candidate's stored id as the input, keeping conversationId stable across the session
+- Enrich turns render as Markdown lists; export turns render Markdown tables + CSV with copy/download
+- Quick-pick number buttons driven by structured candidate ids
+- Arena email gating with access-denied page and cross-origin iframe support
 
 ## Tech Stack
 
@@ -133,20 +135,12 @@ Prospect Lens Console — conversational console for finding, selecting, and enr
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T12:38:18.011Z
-- **Request:** Prospect Lens v10 — raise the serverless function time limit to the maximum.
+- **Updated at:** 2026-08-05T12:59:30.316Z
+- **Request:** Prospect Lens v10 — candidate cards don't render on search turns.
 
-There is no "unlimited" on Vercel; set the highest your plan allows.
+The workflow's visible message and the card data are SEPARATE. The intro sentence is Present Cards.content; the actual card array is Identify.candidates — objects with { id, name, title, company, location, seniority_level, confidence, linkedin_url, photo_url, summary }. Today the UI shows only the sentence.
 
-Confirm the Vercel plan. Hobby caps at 10s (and ignores maxDuration). Pro/Enterprise allow up to 300s. Upgrade to Pro if on Hobby — otherwise slow searches will always fail.
-In every app/api/**/route.ts, add export const maxDuration = 300; (use 60 if on the lower Pro cap).
-In vercel.json, set { "functions": { "app/api/**/route.ts": { "maxDuration": 300 } } }.
-Give the outbound fetch an AbortController of ~295s so it never dangles past the platform limit.
-Commit, push, redeploy (function-config changes require a redeploy).
-Verify:
-
-bash
-
-curl -s --max-time 310 -w "\n[%{time_total}s]\n" -X POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute \
- -H "Content-Type: application/json" -H "x-api-key: <PUREMUON_API_KEY>" \
- -d '{"input":"Find the CMO of Vercel","conversationId":"test-123"}' | head -c 1500
+From the execute response, read BOTH: the message string AND the candidates array. If the workflow now returns a combined { message, candidates } object on the search branch, use that directly; otherwise read the per-block output for the Identify block and pull its candidates.
+Render one card per candidates[] item — name, title, company, location, seniority badge, confidence badge, LinkedIn link, photo (photo_url), and a numbered "select" affordance using id. Use Present Cards text as the section heading above the cards. Never show email/phone here (none exists at this stage).
+On selection, send the chosen id as { "input": "<number>", "conversationId": "<same session id>" } — the workflow matches by stored id, so keep conversationId stable across the session.
+Keep the enrich/export turns rendering as Markdown (enrich returns a text list; export returns a Markdown table + CSV).

@@ -72,6 +72,8 @@ function isFallbackReply(text: string): boolean {
 /** Defensively narrows the API's candidates payload into typed cards. */
 function toUiCandidates(value: unknown): CandidateCard[] {
   if (!Array.isArray(value)) return [];
+  const str = (v: unknown): string | undefined =>
+    typeof v === 'string' && v.trim() ? v.trim() : undefined;
   const out: CandidateCard[] = [];
   value.forEach((item, i) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return;
@@ -82,11 +84,19 @@ function toUiCandidates(value: unknown): CandidateCard[] {
         typeof rec.index === 'number' && Number.isFinite(rec.index) && rec.index >= 1
           ? Math.floor(rec.index)
           : i + 1,
+      id:
+        typeof rec.id === 'number' && Number.isFinite(rec.id) && rec.id >= 1
+          ? Math.floor(rec.id)
+          : undefined,
       name: rec.name.trim(),
       title: typeof rec.title === 'string' ? rec.title : '',
       company: typeof rec.company === 'string' ? rec.company : '',
-      linkedin:
-        typeof rec.linkedin === 'string' && rec.linkedin.trim() ? rec.linkedin.trim() : undefined,
+      linkedin: str(rec.linkedin),
+      location: str(rec.location),
+      seniority: str(rec.seniority),
+      confidence: str(rec.confidence),
+      photoUrl: str(rec.photoUrl),
+      summary: str(rec.summary),
     });
   });
   return out.slice(0, 10);
@@ -134,6 +144,9 @@ export default function ChatClient() {
       setSending(true);
 
       try {
+        // Selection turns send the chosen candidate id as the plain input —
+        // { input: "<number>", conversationId } — with the SAME session id the
+        // search ran under, so the workflow can match its stored candidates.
         const response = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -193,12 +206,12 @@ export default function ChatClient() {
     if (!last || last.role !== 'assistant' || last.id === 'welcome' || last.isNotice) return [];
 
     // Preferred signal: structured candidates parsed from the workflow —
-    // their indices are exactly the numbers the workflow expects back.
+    // their stored ids are exactly the numbers the workflow matches on.
     if (last.candidates && last.candidates.length > 0) {
-      return last.candidates
-        .map((c) => c.index)
-        .filter((n) => n >= 1 && n <= 10)
-        .sort((a, b) => a - b);
+      const nums = last.candidates
+        .map((c) => c.id ?? c.index)
+        .filter((n) => n >= 1 && n <= 99);
+      return Array.from(new Set(nums)).sort((a, b) => a - b);
     }
 
     // Fallback: require a second, independent signal beyond mere numbering so
@@ -314,11 +327,11 @@ export default function ChatClient() {
           value={input}
           onChange={(event) => setInput(event.target.value)}
           placeholder="Ask anything — e.g. Find the Head of Growth at Figma"
-          disabled={sending}
-          aria-label="Message"
+          maxLength={2000}
+          autoComplete="off"
         />
-        <button type="submit" className="send-btn" disabled={sending || !input.trim()}>
-          {sending ? 'Working\u2026' : 'Send'}
+        <button className="send-btn" type="submit" disabled={sending || !input.trim() || !conversationId}>
+          {sending ? 'Searching…' : 'Send'}
         </button>
       </form>
     </div>

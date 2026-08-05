@@ -226,6 +226,61 @@
   letter-spacing: 0.25px;
 }
 
+/* ---------- Rich candidate card fields (photo, location, badges, summary) ---------- */
+.cand-photo {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--ds-radius-full, 9999px);
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cand-loc {
+  font-size: 12px;
+  color: #a3adc4;
+}
+
+.cand-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.cand-badge {
+  padding: 1px 8px;
+  border-radius: var(--ds-radius-pill, 80px);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.25px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #cdd5e6;
+}
+
+.cand-badge-seniority {
+  border-color: rgba(179, 100, 215, 0.5);
+  background: rgba(179, 100, 215, 0.14);
+  color: #ddb8f0;
+}
+
+.cand-badge-confidence {
+  border-color: rgba(59, 200, 132, 0.5);
+  background: rgba(59, 200, 132, 0.12);
+  color: #89deb5;
+}
+
+.cand-summary {
+  font-size: 12px;
+  color: #9aa4bc;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* ---------- Mobile pass (~375px) ---------- */
 @media (max-width: 480px) {
   .app {
@@ -300,6 +355,15 @@
   }
 
   .cand-cta {
+    display: none;
+  }
+
+  .cand-photo {
+    width: 34px;
+    height: 34px;
+  }
+
+  .cand-summary {
     display: none;
   }
 
