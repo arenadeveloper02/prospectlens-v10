@@ -6,7 +6,6 @@ import {
   looksLikeInternalPayload,
   parseWorkflowResponse,
   redactPhones,
-  SELECTED_OUTPUTS,
 } from '@/lib/prospectlens';
 import { ARENA_EMAIL_COOKIE_NAME } from '@/lib/arena-email-constants';
 
@@ -81,24 +80,21 @@ export async function POST(request: NextRequest) {
 
     const { url, key } = getWorkflowConfig();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180_000);
+    // Workflow contract: allow up to 120s for the run to complete.
+    const timeout = setTimeout(() => controller.abort(), 120_000);
 
     let reply: string | null = null;
     try {
+      // New workflow contract: POST { input, conversationId } and receive a
+      // JSON body whose result is { reply, mode, cardCount } (possibly under
+      // data.result / data.output / data.content).
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'X-API-Key': key,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          input: message,
-          message,
-          conversationId,
-          conversation_id: conversationId,
-          stream: true,
-          selectedOutputs: SELECTED_OUTPUTS,
-        }),
+        body: JSON.stringify({ input: message, conversationId }),
         signal: controller.signal,
         cache: 'no-store',
       });
@@ -114,10 +110,10 @@ export async function POST(request: NextRequest) {
       clearTimeout(timeout);
     }
 
-    // Defense in depth: even after whitelist extraction, never let anything
-    // that still looks like raw JSON or internal workflow state (candidates
-    // payloads, conversation ids, enrich status, selection state) reach the
-    // user. Treat it exactly like a missing reply and show the friendly copy.
+    // Defense in depth: even after extraction, never let anything that still
+    // looks like raw JSON or internal workflow state (candidates payloads,
+    // conversation ids, enrich status, selection state) reach the user.
+    // Treat it exactly like a missing reply and show the friendly copy.
     const candidate = reply && reply.trim() ? reply.trim() : null;
     const safeReply = redactPhones(
       candidate && !looksLikeInternalPayload(candidate) ? candidate : FRIENDLY_FAILURE,

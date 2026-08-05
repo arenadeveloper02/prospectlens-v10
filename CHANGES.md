@@ -1,19 +1,13 @@
-# Change Summary — hardening + visual polish pass
+# Change Summary — new workflow endpoint + structured response contract
 
-No security, auth, rate-limiting, credential, middleware, or database-config files were touched. The Prisma schema is echoed unchanged in spirit (ChatMessage model preserved; no columns removed or altered).
+No auth, rate-limiting, middleware, UI, or database-schema behavior changed. The Prisma schema is returned unchanged (ChatMessage columns preserved exactly; no drops, renames, or type changes).
 
 ## Files changed and why
 
-- **lib/prospectlens.ts** — Rewrote `extractReply` to a strict whitelist: it only ever returns `presentcards.content`, `formatexport.content`, `apollocontactfinder.content`, or `identify.message` (in that priority order) and returns `null` otherwise. Removed `serializecandidates.result` / `serializeenriched.result` from consideration entirely, removed the generic suffix-matching loop and the `REPLY_KEYS` fallback, and removed the raw streamed-text fallback in `parseWorkflowResponse` (stream chunks are now only scanned for whitelisted fields, newest first). Added exported `looksLikeInternalPayload` used by the API route as defense in depth. `SELECTED_OUTPUTS`, `getWorkflowConfig`, and `redactPhones` are unchanged.
+- **lib/prospectlens.ts** — Switched `DEFAULT_API_URL` to the new workflow (`93554407-b92d-4ec6-ba3c-be07be4c153b/execute`) and `DEFAULT_API_KEY` to the new key; both remain overridable via `PROSPECTLENS_API_URL` / `PROSPECTLENS_API_KEY`. Replaced the old per-block output whitelist (`presentcards.content`, etc.) with the new structured contract: the extractor now looks for `{ reply, mode, cardCount }` — an object's own `reply` field first, then the `result` / `output` / `content` / `data` containers, then plain-string `output`/`content` fallbacks (rejected if they look like internal payloads). `parseWorkflowResponse` now parses the plain JSON body directly and keeps an SSE `data:` fallback for streamed deployments. Removed the now-unused `SELECTED_OUTPUTS` export. `looksLikeInternalPayload` and `redactPhones` are unchanged.
 
-- **app/api/chat/route.ts** — Added a single defense-in-depth check right before the reply is returned: if the extracted reply parses as JSON or contains internal markers (`"candidates":`, `"conversation_id":`, `"enrich_status":`, `"selected_ids":`), it is treated as a null reply and `FRIENDLY_FAILURE` is shown, with a comment explaining why. Rate limiter, credentials handling, logging, and all other logic are byte-identical.
+- **app/api/chat/route.ts** — Request body is now exactly `{ input: message, conversationId }` per the new contract (no `stream`, no `selectedOutputs`); dropped the `SELECTED_OUTPUTS` import accordingly. Timeout tightened to 120s to match the workflow contract. Everything else (validation, rate limiter, best-effort Prisma logging, defense-in-depth reply check, friendly failure copy) is unchanged.
 
-- **components/ChatClient.tsx** — Tightened `pickNumbers` to require a second independent signal (mentions of company/title, or phrases like "reply with the number" / "which one") before showing quick-pick buttons. Added role labels (You / Prospect Lens) with avatar dots, relative timestamps refreshed every 30s, a `bubble-welcome` class for the getting-started panel, and an `isNotice` flag so fallback replies get distinct warning styling.
+- **.env.example** — Documents `DATABASE_URL`, the new `PROSPECTLENS_API_URL` / `PROSPECTLENS_API_KEY` values, and `PORT=3000`.
 
-- **components/Markdown.tsx** — Tightened `looksLikeCsv` with a column-count consistency check: every line must have the same (≥1) number of commas as the first line before the CSV copy/download block renders. Everything else unchanged.
-
-- **lib/types.ts** — Added optional `isNotice?: boolean` to `UiMessage` (additive only).
-
-- **app/chat-polish.css** (new) + **app/layout.tsx** (one import line) — New stylesheet for the polish items: message meta rows, fade/slide-in entrance animation (with prefers-reduced-motion guard), amber-tinted notice bubbles, welcome panel glow, scrollable tables, and the ~375px mobile pass (scrollable chips/quick-picks, non-overflowing composer). Existing globals.css and the dark/particle theme are untouched.
-
-- **prisma/schema.prisma** — Returned per the database rule; `ChatMessage` columns preserved exactly (no drops, renames, or type changes).
+- **prisma/schema.prisma** — Returned per the database rule; `ChatMessage` columns preserved exactly.
