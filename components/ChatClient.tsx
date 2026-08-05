@@ -1,11 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { UiMessage, QuickPhrase } from '@/lib/types';
+import type { UiMessage, QuickPhrase, CandidateCard } from '@/lib/types';
 import { Markdown } from '@/components/Markdown';
 import { TypingIndicator } from '@/components/TypingIndicator';
 import { QuickChips } from '@/components/QuickChips';
 import { ParticleField } from '@/components/ParticleField';
+import { CandidateCards } from '@/components/CandidateCards';
 
 const QUICK_PHRASES: QuickPhrase[] = [
   { label: 'Find the CMO of Vercel', message: 'Find the CMO of Vercel' },
@@ -21,7 +22,7 @@ const WELCOME = [
   '- Find the CMO of Vercel',
   '- VP of Sales at Notion',
   '',
-  'When I show numbered candidates, reply with a number (or tap a quick-pick) to enrich that contact with a verified email. Say "Show all my contacts" anytime to export everything as a table and CSV.',
+  'When I show numbered candidates, reply with a number (or tap a card) to enrich that contact with a verified email. Say "Show all my contacts" anytime to export everything as a table and CSV.',
 ].join('\n');
 
 const CONVERSATION_COOKIE = 'pl_conversation_id';
@@ -63,9 +64,32 @@ function formatRelativeTime(value: string | Date, now: number): string {
 
 /** Matches fallback/notice copy sent by the API route or local error paths. */
 function isFallbackReply(text: string): boolean {
-  return /try again in a moment|shorten it and try again|catch up, then try again|start searching/i.test(
+  return /try again in a moment|shorten it and try again|catch up, then try again|start searching|was stopped/i.test(
     text,
   );
+}
+
+/** Defensively narrows the API's candidates payload into typed cards. */
+function toUiCandidates(value: unknown): CandidateCard[] {
+  if (!Array.isArray(value)) return [];
+  const out: CandidateCard[] = [];
+  value.forEach((item, i) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+    const rec = item as Record<string, unknown>;
+    if (typeof rec.name !== 'string' || !rec.name.trim()) return;
+    out.push({
+      index:
+        typeof rec.index === 'number' && Number.isFinite(rec.index) && rec.index >= 1
+          ? Math.floor(rec.index)
+          : i + 1,
+      name: rec.name.trim(),
+      title: typeof rec.title === 'string' ? rec.title : '',
+      company: typeof rec.company === 'string' ? rec.company : '',
+      linkedin:
+        typeof rec.linkedin === 'string' && rec.linkedin.trim() ? rec.linkedin.trim() : undefined,
+    });
+  });
+  return out.slice(0, 10);
 }
 
 export default function ChatClient() {
@@ -119,12 +143,14 @@ export default function ChatClient() {
           reply?: unknown;
           error?: unknown;
           status?: unknown;
+          candidates?: unknown;
         } | null;
         const replyText =
           data && typeof data.reply === 'string' && data.reply.trim() ? data.reply : null;
         const errorCode = data && typeof data.error === 'string' ? data.error : null;
         const upstreamStatus =
           data && typeof data.status === 'number' && data.status > 0 ? data.status : null;
+        const candidates = response.ok && !errorCode ? toUiCandidates(data?.candidates) : [];
         // Surface the real upstream failure instead of a generic fallback so
         // problems are debuggable straight from the chat.
         const reply =
@@ -141,6 +167,7 @@ export default function ChatClient() {
             content: reply,
             createdAt: new Date().toISOString(),
             isNotice,
+            candidates: !isNotice && candidates.length > 0 ? candidates : undefined,
           },
         ]);
       } catch {
@@ -165,9 +192,19 @@ export default function ChatClient() {
     const last = messages[messages.length - 1];
     if (!last || last.role !== 'assistant' || last.id === 'welcome' || last.isNotice) return [];
 
-    // Require a second, independent signal beyond mere numbering so plain
-    // numbered instructions never trigger quick-pick buttons: the message must
-    // also mention company/title context or explicitly ask for a number.
+    // Preferred signal: structured candidates parsed from the workflow —
+    // their indices are exactly the numbers the workflow expects back.
+    if (last.candidates && last.candidates.length > 0) {
+      return last.candidates
+        .map((c) => c.index)
+        .filter((n) => n >= 1 && n <= 10)
+        .sort((a, b) => a - b);
+    }
+
+    // Fallback: require a second, independent signal beyond mere numbering so
+    // plain numbered instructions never trigger quick-pick buttons: the
+    // message must also mention company/title context or explicitly ask for a
+    // number.
     const hasCandidateContext =
       /\b(company|title)\b/i.test(last.content) ||
       /reply with (?:the )?number|which one/i.test(last.content);
@@ -223,7 +260,16 @@ export default function ChatClient() {
                 </div>
                 <div className={bubbleClass}>
                   {msg.role === 'assistant' ? (
-                    <Markdown content={msg.content} />
+                    <>
+                      <Markdown content={msg.content} />
+                      {msg.candidates && msg.candidates.length > 0 && (
+                        <CandidateCards
+                          candidates={msg.candidates}
+                          disabled={sending}
+                          onPick={(n) => void send(String(n))}
+                        />
+                      )}
+                    </>
                   ) : (
                     <span>{msg.content}</span>
                   )}

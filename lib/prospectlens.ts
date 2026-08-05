@@ -1,3 +1,5 @@
+import type { CandidateCard } from '@/lib/types';
+
 const DEFAULT_API_URL =
   'https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute';
 const DEFAULT_API_KEY = 'sk-sim-ywX13HywO8xTjvBbPgqjD-Idk2K4gP7P';
@@ -44,6 +46,34 @@ const TABLE_STATUS = /^(row|rows)\b.*\b(updated|inserted|upserted|added|saved)\b
 
 export function isTableStatus(text: string): boolean {
   return TABLE_STATUS.test(text.trim());
+}
+
+/**
+ * Heuristic: does this string look like raw JSON / internal workflow state
+ * rather than user-facing prose? Used as defense-in-depth so structured
+ * payloads never leak into the chat.
+ */
+export function looksLikeInternalPayload(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return true;
+  if (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  ) {
+    try {
+      JSON.parse(trimmed);
+      return true;
+    } catch {
+      // Not valid JSON — fall through to keyword checks.
+    }
+  }
+  if (/"(selected_ids|selectedIds|conversationId|blockName|executionId)"\s*:/.test(trimmed)) {
+    return true;
+  }
+  if (/^\s*\{\s*"(mode|candidates|output|result)"/.test(trimmed)) {
+    return true;
+  }
+  return false;
 }
 
 function getField(obj: unknown, key: string): unknown {
@@ -268,6 +298,22 @@ export function extractReply(value: unknown): string | null {
   return extractReplyFromValue(value);
 }
 
+function parseSseChunks(raw: string): unknown[] {
+  const chunks: unknown[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const clean = line.trim();
+    if (!clean.startsWith('data:')) continue;
+    const payload = clean.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    try {
+      chunks.push(JSON.parse(payload) as unknown);
+    } catch {
+      // Non-JSON stream noise is internal — never shown to the user.
+    }
+  }
+  return chunks;
+}
+
 export function parseWorkflowResponse(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -275,19 +321,7 @@ export function parseWorkflowResponse(raw: string): string | null {
   // SSE-stream fallback: some workflow deployments still answer with
   // `data:` chunks. Scan them newest-first for a usable message.
   if (trimmed.startsWith('data:') || trimmed.includes('\ndata:')) {
-    const chunks: unknown[] = [];
-    for (const line of trimmed.split(/\r?\n/)) {
-      const clean = line.trim();
-      if (!clean.startsWith('data:')) continue;
-      const payload = clean.slice(5).trim();
-      if (!payload || payload === '[DONE]') continue;
-      try {
-        chunks.push(JSON.parse(payload) as unknown);
-      } catch {
-        // Non-JSON stream noise is internal — never shown to the user.
-      }
-    }
-    const newestFirst = chunks.slice().reverse();
+    const newestFirst = parseSseChunks(trimmed).slice().reverse();
     for (const chunk of newestFirst) {
       const agent = pickAgentBlockContent(chunk);
       if (agent) return agent;
@@ -313,6 +347,114 @@ export function parseWorkflowResponse(raw: string): string | null {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Structured candidate extraction                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Depth-limited recursive search for a `candidates` array anywhere in the
+ * workflow payload — including JSON embedded inside agent content strings
+ * (e.g. output.candidates, result.output.candidates, or a stringified
+ * { mode, selected_ids, candidates, message } object).
+ */
+function findCandidatesArray(value: unknown, depth = 0): unknown[] | null {
+  if (depth > 7 || value === null || value === undefined) return null;
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    ) {
+      try {
+        return findCandidatesArray(JSON.parse(trimmed) as unknown, depth + 1);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findCandidatesArray(item, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const own = record['candidates'];
+    if (Array.isArray(own) && own.length > 0) return own;
+    for (const child of Object.values(record)) {
+      const found = findCandidatesArray(child, depth + 1);
+      if (found) return found;
+    }
+  }
+
+  return null;
+}
+
+function toCandidateCard(item: unknown, fallbackIndex: number): CandidateCard | null {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+  const record = item as Record<string, unknown>;
+  const name =
+    asText(record['name']) ?? asText(record['full_name']) ?? asText(record['fullName']);
+  if (!name) return null;
+  const title = asText(record['title']) ?? asText(record['role']) ?? '';
+  const company =
+    asText(record['company']) ??
+    asText(record['organization']) ??
+    asText(record['company_name']) ??
+    '';
+  const linkedin =
+    asText(record['linkedin']) ??
+    asText(record['linkedin_url']) ??
+    asText(record['linkedinUrl']);
+  const rawIndex = record['index'] ?? record['id'] ?? record['number'];
+  let index = fallbackIndex;
+  if (typeof rawIndex === 'number' && Number.isFinite(rawIndex) && rawIndex >= 1) {
+    index = Math.floor(rawIndex);
+  } else if (typeof rawIndex === 'string' && /^\d{1,2}$/.test(rawIndex.trim())) {
+    index = Number(rawIndex.trim());
+  }
+  return { index, name, title, company, linkedin };
+}
+
+/**
+ * Extracts the structured candidates[] array from the raw upstream body
+ * (plain JSON or SSE). Returns [] when no candidates are present — enrich
+ * and export turns legitimately have none.
+ */
+export function extractWorkflowCandidates(raw: string): CandidateCard[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  const roots: unknown[] = [];
+  if (trimmed.startsWith('data:') || trimmed.includes('\ndata:')) {
+    roots.push(...parseSseChunks(trimmed).slice().reverse());
+  } else {
+    try {
+      roots.push(JSON.parse(trimmed) as unknown);
+    } catch {
+      return [];
+    }
+  }
+
+  for (const root of roots) {
+    const arr = findCandidatesArray(root);
+    if (arr) {
+      const cards = arr
+        .map((item, i) => toCandidateCard(item, i + 1))
+        .filter((c): c is CandidateCard => c !== null)
+        .slice(0, 10);
+      if (cards.length > 0) return cards;
+    }
+  }
+  return [];
+}
+
 /**
  * Builds a debuggable, user-safe error message from a non-200 workflow
  * response. Extracts an `error` / `message` / `detail` string from a JSON
@@ -328,58 +470,29 @@ export function describeWorkflowError(status: number, raw: string): string {
     } catch {
       parsed = null;
     }
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const record = parsed as Record<string, unknown>;
-      for (const key of ['error', 'message', 'detail'] as const) {
-        const value = record[key];
-        if (typeof value === 'string' && value.trim()) {
-          detail = value.trim();
-          break;
-        }
-        if (value && typeof value === 'object' && !Array.isArray(value)) {
-          const inner = (value as Record<string, unknown>)['message'];
-          if (typeof inner === 'string' && inner.trim()) {
-            detail = inner.trim();
-            break;
-          }
-        }
-      }
-    }
-    if (!detail) {
-      detail = trimmed.slice(0, 300);
+    if (parsed && typeof parsed === 'object') {
+      detail =
+        asText(getField(parsed, 'error')) ??
+        asText(getField(parsed, 'message')) ??
+        asText(getField(parsed, 'detail')) ??
+        asText(getField(getField(parsed, 'error'), 'message')) ??
+        '';
+    } else {
+      detail = trimmed.slice(0, 160);
     }
   }
-  const suffix = detail ? `: ${detail}` : '';
-  return `The search service returned an error (HTTP ${status})${suffix}. Please try again in a moment.`;
+  const suffix = detail ? ` — "${detail.slice(0, 200)}"` : '';
+  return `The search service returned an error (HTTP ${status}${suffix}). Please try again in a moment.`;
 }
 
 /**
- * Defense in depth: even an extracted reply could, in a bad workflow run,
- * contain raw JSON or internal debug state. Any reply that parses as JSON
- * or contains known internal field names is treated as unusable so the
- * API route falls back to its debuggable failure copy — internal workflow
- * state must never leak into the chat.
+ * Redacts phone-number-looking sequences (9–15 digits with separators) so
+ * personal phone numbers never surface in the chat. Emails and LinkedIn URLs
+ * are untouched.
  */
-export function looksLikeInternalPayload(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed) return true;
-  if (
-    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-    (trimmed.startsWith('[') && trimmed.endsWith(']'))
-  ) {
-    try {
-      JSON.parse(trimmed);
-      return true;
-    } catch {
-      // Not valid JSON — fall through to marker checks.
-    }
-  }
-  const markers = ['"candidates":', '"conversation_id":', '"enrich_status":', '"selected_ids":'];
-  return markers.some((marker) => trimmed.includes(marker));
-}
-
 export function redactPhones(text: string): string {
-  return text
-    .replace(/\(\d{3}\)[\s.-]?\d{3}[\s.-]?\d{4}/g, '[number withheld]')
-    .replace(/\+\d{1,3}[\s.-]\d{3}[\s.-]?\d{3,4}[\s.-]?\d{3,4}/g, '[number withheld]');
+  return text.replace(/\+?[\d(][\d\s().-]{7,}\d/g, (match) => {
+    const digits = match.replace(/\D/g, '');
+    return digits.length >= 9 && digits.length <= 15 ? '[phone hidden]' : match;
+  });
 }

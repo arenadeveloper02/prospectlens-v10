@@ -129,6 +129,103 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* ---------- Structured candidate cards ---------- */
+.cand-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-component-xs, 8px);
+  margin-top: 10px;
+}
+
+.cand-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-component-sm, 12px);
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: var(--ds-radius-md, 12px);
+  border: 1px solid rgba(26, 115, 232, 0.35);
+  background: rgba(26, 115, 232, 0.1);
+  color: #eef2fa;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--ds-motion-duration-fast, 100ms)
+    var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.cand-card:hover:not(:disabled) {
+  border-color: rgba(26, 115, 232, 0.7);
+  background: rgba(26, 115, 232, 0.2);
+  transform: translateY(-1px);
+}
+
+.cand-card:disabled {
+  opacity: var(--ds-opacity-disabled, 0.38);
+  cursor: default;
+  transform: none;
+}
+
+.cand-num {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--ds-radius-sm, 8px);
+  background: linear-gradient(135deg, var(--ds-color-brand-default, #1A73E8), var(--ds-color-graphic-sea-blue-default, #00A7D6));
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cand-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.cand-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.cand-line {
+  font-size: 13px;
+  color: #cdd5e6;
+}
+
+.cand-link {
+  font-size: 12px;
+  color: #8fbcf6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  width: fit-content;
+}
+
+.cand-link:hover {
+  color: #b6d3f9;
+}
+
+.cand-cta {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a5e4f4;
+  white-space: nowrap;
+}
+
+.cand-hint {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: #8b95ae;
+  letter-spacing: 0.25px;
+}
+
 /* ---------- Mobile pass (~375px) ---------- */
 @media (max-width: 480px) {
   .app {
@@ -196,6 +293,14 @@
   .chip {
     flex-shrink: 0;
     white-space: nowrap;
+  }
+
+  .cand-card {
+    padding: 10px 12px;
+  }
+
+  .cand-cta {
+    display: none;
   }
 
   .md-table th,

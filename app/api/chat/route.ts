@@ -3,18 +3,25 @@ import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
   describeWorkflowError,
+  extractWorkflowCandidates,
   getWorkflowConfig,
   isTableStatus,
   looksLikeInternalPayload,
   parseWorkflowResponse,
   redactPhones,
 } from '@/lib/prospectlens';
+import type { CandidateCard } from '@/lib/types';
 import { ARENA_EMAIL_COOKIE_NAME } from '@/lib/arena-email-constants';
 
 export const dynamic = 'force-dynamic';
 // A real search runs multiple upstream lookups and legitimately takes
 // 30–60s. Give the function a 60s budget (also pinned in vercel.json) so the
 // workflow run never dies to a Vercel function timeout.
+// NOTE: on the Vercel HOBBY plan functions hard-cap at 10s and this value is
+// ignored — the project must be on a plan that allows >=60s for slow searches
+// (Vercel CMO, Notion VP Sales) to complete. The timing log below shows
+// exactly where failing turns die: our AbortController (~58s), the platform
+// limit (function killed with no timing log), or an upstream error status.
 export const maxDuration = 60;
 
 const WINDOW_MS = 60_000;
@@ -91,9 +98,14 @@ export async function POST(request: NextRequest) {
     const timeout = setTimeout(() => controller.abort(), 58_000);
 
     let reply: string | null = null;
+    let candidates: CandidateCard[] = [];
     let errorNotice: string | null = null;
     let upstreamError: string | null = null;
     let upstreamStatus = 0;
+    // Duration instrumentation: proves in Vercel logs whether a failing turn
+    // (a) hit our 58s AbortController, (b) was killed by the platform limit
+    // (no "PL upstream timing" log at all), or (c) got a real upstream error.
+    const fetchStarted = Date.now();
     try {
       // Workflow contract — send the body EXACTLY as camelCase
       // { input, conversationId } with the key in the x-api-key header.
@@ -113,9 +125,15 @@ export async function POST(request: NextRequest) {
 
       upstreamStatus = response.status;
       const raw = await response.text();
+      const elapsedMs = Date.now() - fetchStarted;
+
+      // Timing + status log: check this in Vercel logs to verify the timeout
+      // is upstream (or platform), not our fetch.
+      console.log('PL upstream timing', { ms: elapsedMs, status: upstreamStatus });
 
       // Log the raw upstream payload (first ~1500 chars) so the exact
-      // per-block wrapper shape is always visible in Vercel logs.
+      // per-block wrapper shape — including where candidates[] sits — is
+      // always visible in Vercel logs.
       console.log('PL upstream payload', upstreamStatus, raw.slice(0, 1500));
 
       if (response.ok) {
@@ -130,6 +148,13 @@ export async function POST(request: NextRequest) {
         // SSE chunks, and finally a recursive scan — filtering table statuses
         // at every level.
         reply = parseWorkflowResponse(raw);
+        // Structured candidates: the search turn carries a candidates[] array
+        // (name, title, company, linkedin, index) alongside the lead-in
+        // message — surface it so the UI renders clickable numbered cards.
+        candidates = extractWorkflowCandidates(raw);
+        if (candidates.length > 0) {
+          console.log('PL candidates parsed', candidates.length);
+        }
         if (!reply) {
           console.error('PL upstream unreadable', upstreamStatus, raw.slice(0, 1500));
           upstreamError = 'upstream_unreadable';
@@ -141,10 +166,17 @@ export async function POST(request: NextRequest) {
         errorNotice = describeWorkflowError(upstreamStatus, raw);
       }
     } catch (err) {
-      console.error('PL upstream fetch failed', err instanceof Error ? err.message : String(err));
-      upstreamError = 'upstream_unreachable';
-      errorNotice =
-        'I could not reach the search service (network error or the request timed out — a deep search can take up to a minute). Please try again in a moment.';
+      const elapsedMs = Date.now() - fetchStarted;
+      const aborted = controller.signal.aborted;
+      console.error('PL upstream fetch failed', {
+        ms: elapsedMs,
+        abortedByUs: aborted,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      upstreamError = aborted ? 'upstream_timeout' : 'upstream_unreachable';
+      errorNotice = aborted
+        ? 'The search ran longer than the 58-second budget and was stopped. The deepest searches can exceed this — please try again, or narrow the query.'
+        : 'I could not reach the search service (network error or the request timed out — a deep search can take up to a minute). Please try again in a moment.';
     } finally {
       clearTimeout(timeout);
     }
@@ -182,7 +214,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ reply: safeReply });
+    return NextResponse.json({ reply: safeReply, candidates });
   } catch {
     return NextResponse.json({ reply: FRIENDLY_FAILURE }, { status: 500 });
   }
