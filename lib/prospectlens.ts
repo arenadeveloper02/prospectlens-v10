@@ -1,15 +1,21 @@
 const DEFAULT_API_URL =
-  'https://agent.thearena.ai/api/workflows/93554407-b92d-4ec6-ba3c-be07be4c153b/execute';
-const DEFAULT_API_KEY = 'sk-sim-CM-viQzIdS99ZG4oIMVwQbm1Q3GfgjUx';
+  'https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute';
+const DEFAULT_API_KEY = 'sk-sim-ywX13HywO8xTjvBbPgqjD-Idk2K4gP7P';
 
 export interface WorkflowConfig {
   url: string;
   key: string;
 }
 
+/**
+ * Resolves the workflow execute endpoint and API key.
+ * Primary env vars: PUREMUON_URL / PUREMUON_API_KEY.
+ * Legacy fallbacks: PROSPECTLENS_API_URL / PROSPECTLENS_API_KEY.
+ * Hard defaults point at the healthy 65d2b97b-… workflow.
+ */
 export function getWorkflowConfig(): WorkflowConfig {
-  const envUrl = process.env.PROSPECTLENS_API_URL;
-  const envKey = process.env.PROSPECTLENS_API_KEY;
+  const envUrl = process.env.PUREMUON_URL ?? process.env.PROSPECTLENS_API_URL;
+  const envKey = process.env.PUREMUON_API_KEY ?? process.env.PROSPECTLENS_API_KEY;
   return {
     url: envUrl && envUrl.trim() ? envUrl.trim() : DEFAULT_API_URL,
     key: envKey && envKey.trim() ? envKey.trim() : DEFAULT_API_KEY,
@@ -135,6 +141,46 @@ export function parseWorkflowResponse(raw: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Builds a debuggable, user-safe error message from a non-200 workflow
+ * response. Extracts an `error` / `message` / `detail` string from a JSON
+ * body when possible, otherwise includes a short snippet of the raw body.
+ */
+export function describeWorkflowError(status: number, raw: string): string {
+  let detail = '';
+  const trimmed = raw.trim();
+  if (trimmed) {
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      parsed = null;
+    }
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>;
+      for (const key of ['error', 'message', 'detail'] as const) {
+        const value = record[key];
+        if (typeof value === 'string' && value.trim()) {
+          detail = value.trim();
+          break;
+        }
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          const inner = (value as Record<string, unknown>)['message'];
+          if (typeof inner === 'string' && inner.trim()) {
+            detail = inner.trim();
+            break;
+          }
+        }
+      }
+    }
+    if (!detail) {
+      detail = trimmed.slice(0, 300);
+    }
+  }
+  const suffix = detail ? `: ${detail}` : '';
+  return `The search service returned an error (HTTP ${status})${suffix}. Please try again in a moment.`;
 }
 
 /**

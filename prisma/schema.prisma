@@ -1,3 +1,4 @@
+// **NOTE: dont remove updatedAt in any tables **
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,4 +15,7 @@ model ChatMessage {
   role           String
   content        String
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  @@index([conversationId])
 }

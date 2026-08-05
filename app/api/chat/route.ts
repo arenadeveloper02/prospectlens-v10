@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
+  describeWorkflowError,
   getWorkflowConfig,
   looksLikeInternalPayload,
   parseWorkflowResponse,
@@ -10,6 +11,7 @@ import {
 import { ARENA_EMAIL_COOKIE_NAME } from '@/lib/arena-email-constants';
 
 export const dynamic = 'force-dynamic';
+// Real searches can take 20–50s; keep this well above 60s so runs never time out.
 export const maxDuration = 300;
 
 const WINDOW_MS = 60_000;
@@ -84,15 +86,18 @@ export async function POST(request: NextRequest) {
     const timeout = setTimeout(() => controller.abort(), 120_000);
 
     let reply: string | null = null;
+    let errorNotice: string | null = null;
     try {
-      // New workflow contract: POST { input, conversationId } and receive a
-      // JSON body whose result is { reply, mode, cardCount } (possibly under
-      // data.result / data.output / data.content).
+      // Workflow contract: POST { input, conversationId } (exact camelCase keys)
+      // with BOTH x-api-key and Authorization: Bearer headers. The JSON body's
+      // result is { reply, mode, cardCount } (possibly under data.result /
+      // data.output / data.content).
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'X-API-Key': key,
           'Content-Type': 'application/json',
+          'x-api-key': key,
+          Authorization: `Bearer ${key}`,
         },
         body: JSON.stringify({ input: message, conversationId }),
         signal: controller.signal,
@@ -103,9 +108,18 @@ export async function POST(request: NextRequest) {
 
       if (response.ok) {
         reply = parseWorkflowResponse(raw);
+        if (!reply) {
+          errorNotice =
+            'The search service responded, but I could not read a usable answer from it. Please try again in a moment.';
+        }
+      } else {
+        // Surface the actual error (status + detail) so failures are debuggable
+        // instead of hiding everything behind the generic fallback copy.
+        errorNotice = describeWorkflowError(response.status, raw);
       }
     } catch {
-      // network failure or timeout — fall through to friendly message
+      errorNotice =
+        'I could not reach the search service (network error or the request timed out). Please try again in a moment.';
     } finally {
       clearTimeout(timeout);
     }
@@ -113,10 +127,11 @@ export async function POST(request: NextRequest) {
     // Defense in depth: even after extraction, never let anything that still
     // looks like raw JSON or internal workflow state (candidates payloads,
     // conversation ids, enrich status, selection state) reach the user.
-    // Treat it exactly like a missing reply and show the friendly copy.
     const candidate = reply && reply.trim() ? reply.trim() : null;
     const safeReply = redactPhones(
-      candidate && !looksLikeInternalPayload(candidate) ? candidate : FRIENDLY_FAILURE,
+      candidate && !looksLikeInternalPayload(candidate)
+        ? candidate
+        : errorNotice ?? FRIENDLY_FAILURE,
     );
 
     try {

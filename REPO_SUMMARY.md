@@ -1,22 +1,22 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T10:14:43.682Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T11:09:25.641Z.
 
 ## Overview
 
-Prospect Lens Console — conversational contact finding and enrichment, now wired to the updated Prospect Lens workflow endpoint with the structured { reply, mode, cardCount } contract.
+Prospect Lens Console — conversational console for finding, selecting, and enriching professional contacts via the Arena workflow.
 
 **Repository:** `prospectlens-v10`  
 **File count:** 33
 
 ## Features
 
-- Chat console for finding, selecting, and enriching professional contacts
-- Updated workflow endpoint (93554407-b92d-4ec6-ba3c-be07be4c153b) with new API key, overridable via PROSPECTLENS_API_URL / PROSPECTLENS_API_KEY env vars
-- Structured response parsing: reads data.result.reply / data.output.reply / top-level reply from the workflow JSON, with SSE-stream fallback
-- 120s request timeout matching the workflow contract
-- Defense-in-depth reply sanitisation (internal payload detection + phone redaction) so raw workflow state never reaches the chat
-- Rate limiting, best-effort Prisma chat logging, Arena email gate, and CSV export UI all preserved
+- Chat console UI with quick phrases and quick-pick candidate selection
+- Server-side proxy to the Arena Prospect Lens workflow (correct endpoint + dual auth headers)
+- Stable per-session conversationId reused across search → select → enrich → export turns
+- Real error surfacing on non-200 workflow responses (HTTP status + detail) instead of generic fallback
+- Best-effort chat logging to Postgres via Prisma
+- Phone-number redaction and internal-payload leak protection
 
 ## Tech Stack
 
@@ -130,33 +130,36 @@ Prospect Lens Console — conversational contact finding and enrichment, now wir
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T10:14:43.682Z
-- **Request:** .env — copy verbatim
-PROSPECTLENS_API_URL=https://agent.thearena.ai/api/workflows/93554407-b92d-4ec6-ba3c-be07be4c153b/execute
-PROSPECTLENS_API_KEY=sk-sim-CM-viQzIdS99ZG4oIMVwQbm1Q3GfgjUx
-PORT=3000
+- **Updated at:** 2026-08-05T11:09:25.641Z
+- **Request:** Fix the Prospect Lens v10 frontend so its API calls succeed against the Arena workflow.
 
-Working curl to paste
-curl -X POST https://agent.thearena.ai/api/workflows/93554407-b92d-4ec6-ba3c-be07be4c153b/execute \
- -H "X-API-Key: sk-sim-CM-viQzIdS99ZG4oIMVwQbm1Q3GfgjUx" \
+Context
+
+The app calls an Arena workflow execute endpoint from its server-side API routes (app/api/**/route.ts).
+It currently points at the wrong workflow (pure-muon 166d2c35-…) and/or has a missing/invalid API key, so the UI shows the fallback "I couldn't complete that search just now."
+The workflow itself is healthy; only the frontend config is wrong.
+Correct configuration
+
+Execute endpoint URL: https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute
+API key (workspace key): sk-sim-ywX13HywO8xTjvBbPgqjD-Idk2K4gP7P
+Tasks
+
+In .env.example and Vercel env vars, ensure these two names exist and are used by the routes:
+PUREMUON_URL = the execute URL above (must contain workflow ID 65d2b97b-…, NOT 166d2c35-…)
+PUREMUON_API_KEY = the key above
+In every app/api/**/route.ts, confirm the request:
+Method: POST
+Headers: Content-Type: application/json, plus BOTH x-api-key: <PUREMUON_API_KEY> and Authorization: Bearer <PUREMUON_API_KEY>
+Body (exact camelCase keys):
+{ "input": "<user message>", "conversationId": "<stable per-session id>" }
+
+
+conversationId must be generated once per browser session and reused across search → select → enrich → export turns (do NOT rename it to conversation_id, sessionId, etc.).
+Read the workflow's JSON response and render the returned agent content string in the UI (the message/cards text). Handle non-200 responses by surfacing the actual error instead of the generic fallback, so failures are debuggable.
+Set maxDuration to at least 60 for the API route(s) / in vercel.json, since a real search can take 20–50s and must not time out.
+Commit, push, and redeploy on Vercel (env var changes require a redeploy).
+Acceptance test (should return a Vercel CMO candidate card, not an error):
+curl -X POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute \
  -H "Content-Type: application/json" \
- -d '{"input":"CMO of Vercel","conversationId":"test-session-001"}'
-
-
-Backend for app
-const r = await fetch(process.env.PROSPECTLENS_API_URL, {
- method: "POST",
- headers: {
- "X-API-Key": process.env.PROSPECTLENS_API_KEY,
- "Content-Type": "application/json",
- },
- body: JSON.stringify({ input: message, conversationId }),
- signal: AbortSignal.timeout(120_000),
-});
-const data = await r.json();
-// structured contract from the flow: { reply, mode, cardCount }
-res.json(data.result ?? { reply: data.output ?? data.content ?? data });
-
-
-
-Make sure you are clear about everything. Use the values and details at right places. The result should be visible properly
+ -H "x-api-key: sk-sim-ywX13HywO8xTjvBbPgqjD-Idk2K4gP7P" \
+ -d '{"input":"Find the CMO of Vercel","conversationId":"test-123"}'
