@@ -1,22 +1,24 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T13:09:54.892Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T13:24:54.209Z.
 
 ## Overview
 
-Prospect Lens Console — a conversational console for finding, selecting, and enriching professional contacts.
+Prospect Lens Console — conversational prospect search with rich candidate cards (photo, LinkedIn, badges) parsed from the workflow's Identify block.
 
 **Repository:** `prospectlens-v10`  
 **File count:** 35
 
 ## Features
 
-- Chat console backed by the Prospect Lens workflow
-- Structured candidate cards parsed from the Identify block (name, title, company, location, seniority, confidence, photo, LinkedIn)
-- One-tap candidate selection that sends the stored candidate id back to the workflow
-- Markdown rendering for enrich/export turns with table + CSV export
+- Chat console driven by the Prospect Lens workflow
+- Structured candidate cards with profile photo + initials fallback
+- View LinkedIn pill button (purple→blue gradient) opening in a new tab
+- Numbered Select affordance sending the candidate's stored id
+- Seniority and confidence badges, location and summary lines
+- Stable per-session conversationId for search → select → enrich
+- CSV export blocks and markdown tables
 - Arena email gate with access-denied page
-- Best-effort chat logging to Neon Postgres via Prisma
 
 ## Tech Stack
 
@@ -134,12 +136,18 @@ Prospect Lens Console — a conversational console for finding, selecting, and e
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T13:09:54.892Z
-- **Request:** Prospect Lens v10 — candidate cards don't render on search turns.
+- **Updated at:** 2026-08-05T13:24:54.209Z
+- **Request:** Prospect Lens v10 — render candidate cards with profile picture + LinkedIn link.
 
-The workflow's visible message and the card data are SEPARATE. The intro sentence is Present Cards.content; the actual card array is Identify.candidates — objects with { id, name, title, company, location, seniority_level, confidence, linkedin_url, photo_url, summary }. Today the UI shows only the sentence.
+The search response already includes a candidates array (from the Identify step). Each item has: id, name, title, company, company_domain, location, seniority_level, confidence, photo_url, linkedin_url, summary. Today the UI only shows the intro sentence — it must map this array into cards.
 
-From the execute response, read BOTH: the message string AND the candidates array. If the workflow now returns a combined { message, candidates } object on the search branch, use that directly; otherwise read the per-block output for the Identify block and pull its candidates.
-Render one card per candidates[] item — name, title, company, location, seniority badge, confidence badge, LinkedIn link, photo (photo_url), and a numbered "select" affordance using id. Use Present Cards text as the section heading above the cards. Never show email/phone here (none exists at this stage).
-On selection, send the chosen id as { "input": "<number>", "conversationId": "<same session id>" } — the workflow matches by stored id, so keep conversationId stable across the session.
-Keep the enrich/export turns rendering as Markdown (enrich returns a text list; export returns a Markdown table + CSV).
+From the execute response, read the candidates array (it's on the Identify block's output — log the raw JSON once to confirm the exact path, e.g. output["Identify"].candidates). Use the Present Cards text as the section heading above the cards.
+Render one card per candidate:
+Profile picture: <img src={photo_url}> in a rounded avatar. photo_url can be null — when it's empty or the image fails to load (onError), fall back to a circular initials avatar (first letters of name). Never show a broken image icon.
+Name (bold), title, company, location.
+Seniority and confidence as small badges.
+LinkedIn link: if linkedin_url is present, render a "View LinkedIn" button/icon opening linkedin_url in a new tab (target="_blank" rel="noopener"). Hide the link if linkedin_url is null.
+A numbered "Select" affordance showing the candidate's id.
+Never show email or phone here (none exists at this stage).
+On select, send { "input": "<id number>", "conversationId": "<same session id>" } — the workflow matches by stored id, so keep conversationId stable across the session.
+Apply the workspace dark-enterprise design language: rounded 16–20px glass cards, thin glowing borders, avatar with a soft ring, pill "View LinkedIn" button with the purple→blue gradient, muted secondary text for title/company/location.

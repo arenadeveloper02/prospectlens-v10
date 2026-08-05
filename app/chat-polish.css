@@ -1,6 +1,6 @@
 /* Prospect Lens chat polish — role labels, timestamps, notice styling,
-   welcome panel, message entrance animation, and 375px mobile pass.
-   Uses existing Arena DS tokens only. */
+   welcome panel, message entrance animation, rich candidate cards, and a
+   375px mobile pass. Uses existing Arena DS tokens only. */
 
 /* ---------- Message groups (bubble + meta) ---------- */
 .msg-group {
@@ -129,7 +129,7 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* ---------- Structured candidate cards ---------- */
+/* ---------- Structured candidate cards (glass, glow, avatar ring) ---------- */
 .cand-list {
   display: flex;
   flex-direction: column;
@@ -143,27 +143,21 @@
   gap: var(--ds-spacing-component-sm, 12px);
   width: 100%;
   text-align: left;
-  padding: 12px 14px;
-  border-radius: var(--ds-radius-md, 12px);
+  padding: 14px 16px;
+  border-radius: var(--ds-radius-lg, 16px);
   border: 1px solid rgba(26, 115, 232, 0.35);
-  background: rgba(26, 115, 232, 0.1);
+  background: linear-gradient(160deg, rgba(26, 115, 232, 0.12), rgba(179, 100, 215, 0.06));
+  backdrop-filter: blur(8px);
+  box-shadow: 0 0 22px rgba(26, 115, 232, 0.1);
   color: #eef2fa;
-  font-family: inherit;
-  cursor: pointer;
   transition: all var(--ds-motion-duration-fast, 100ms)
     var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
 }
 
-.cand-card:hover:not(:disabled) {
-  border-color: rgba(26, 115, 232, 0.7);
-  background: rgba(26, 115, 232, 0.2);
+.cand-card:hover {
+  border-color: rgba(26, 115, 232, 0.65);
+  box-shadow: 0 0 28px rgba(26, 115, 232, 0.2);
   transform: translateY(-1px);
-}
-
-.cand-card:disabled {
-  opacity: var(--ds-opacity-disabled, 0.38);
-  cursor: default;
-  transform: none;
 }
 
 .cand-num {
@@ -178,6 +172,30 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Avatar with a soft glowing ring; initials fallback when photo_url is null
+   or the image fails to load. */
+.cand-avatar {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--ds-radius-full, 9999px);
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.28), 0 0 14px rgba(26, 115, 232, 0.3);
+}
+
+.cand-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--ds-color-graphic-purple-default, #B364D7), var(--ds-color-brand-default, #1A73E8));
 }
 
 .cand-body {
@@ -197,44 +215,6 @@
 .cand-line {
   font-size: 13px;
   color: #cdd5e6;
-}
-
-.cand-link {
-  font-size: 12px;
-  color: #8fbcf6;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  width: fit-content;
-}
-
-.cand-link:hover {
-  color: #b6d3f9;
-}
-
-.cand-cta {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: #a5e4f4;
-  white-space: nowrap;
-}
-
-.cand-hint {
-  margin: 2px 0 0;
-  font-size: 11.5px;
-  color: #8b95ae;
-  letter-spacing: 0.25px;
-}
-
-/* ---------- Rich candidate card fields (photo, location, badges, summary) ---------- */
-.cand-photo {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  border-radius: var(--ds-radius-full, 9999px);
-  object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.08);
 }
 
 .cand-loc {
@@ -279,6 +259,68 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ---------- Card actions: LinkedIn pill + Select affordance ---------- */
+.cand-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--ds-spacing-component-xs, 8px);
+  flex-shrink: 0;
+}
+
+.cand-linkedin {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: var(--ds-radius-pill, 80px);
+  background: linear-gradient(135deg, var(--ds-color-graphic-purple-default, #B364D7), var(--ds-color-brand-default, #1A73E8));
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(179, 100, 215, 0.3);
+  transition: all var(--ds-motion-duration-fast, 100ms)
+    var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.cand-linkedin:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
+
+.cand-select {
+  padding: 6px 14px;
+  border-radius: var(--ds-radius-pill, 80px);
+  border: 1px solid rgba(0, 167, 214, 0.55);
+  background: rgba(0, 167, 214, 0.14);
+  color: #a5e4f4;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--ds-motion-duration-fast, 100ms)
+    var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.cand-select:hover:not(:disabled) {
+  background: rgba(0, 167, 214, 0.32);
+  color: #ffffff;
+}
+
+.cand-select:disabled {
+  opacity: var(--ds-opacity-disabled, 0.38);
+  cursor: default;
+}
+
+.cand-hint {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: #8b95ae;
+  letter-spacing: 0.25px;
 }
 
 /* ---------- Mobile pass (~375px) ---------- */
@@ -351,20 +393,23 @@
   }
 
   .cand-card {
-    padding: 10px 12px;
+    padding: 12px;
+    flex-wrap: wrap;
   }
 
-  .cand-cta {
-    display: none;
-  }
-
-  .cand-photo {
-    width: 34px;
-    height: 34px;
+  .cand-avatar {
+    width: 36px;
+    height: 36px;
   }
 
   .cand-summary {
     display: none;
+  }
+
+  .cand-actions {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .md-table th,
