@@ -1,10 +1,10 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T12:59:30.316Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T13:09:54.892Z.
 
 ## Overview
 
-Prospect Lens Console — conversational console for finding, selecting, and enriching professional contacts, now with rich structured candidate cards (photo, location, seniority and confidence badges) parsed from the Identify block's candidates array.
+Prospect Lens Console — a conversational console for finding, selecting, and enriching professional contacts.
 
 **Repository:** `prospectlens-v10`  
 **File count:** 35
@@ -12,12 +12,11 @@ Prospect Lens Console — conversational console for finding, selecting, and enr
 ## Features
 
 - Chat console backed by the Prospect Lens workflow
-- Rich candidate cards: name, title, company, location, seniority badge, confidence badge, LinkedIn link, and photo
-- Card data read from Identify.candidates (or a combined { message, candidates } payload) — Present Cards text renders as the heading above the cards
-- Selection sends the candidate's stored id as the input, keeping conversationId stable across the session
-- Enrich turns render as Markdown lists; export turns render Markdown tables + CSV with copy/download
-- Quick-pick number buttons driven by structured candidate ids
-- Arena email gating with access-denied page and cross-origin iframe support
+- Structured candidate cards parsed from the Identify block (name, title, company, location, seniority, confidence, photo, LinkedIn)
+- One-tap candidate selection that sends the stored candidate id back to the workflow
+- Markdown rendering for enrich/export turns with table + CSV export
+- Arena email gate with access-denied page
+- Best-effort chat logging to Neon Postgres via Prisma
 
 ## Tech Stack
 
@@ -135,7 +134,7 @@ Prospect Lens Console — conversational console for finding, selecting, and enr
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T12:59:30.316Z
+- **Updated at:** 2026-08-05T13:09:54.892Z
 - **Request:** Prospect Lens v10 — candidate cards don't render on search turns.
 
 The workflow's visible message and the card data are SEPARATE. The intro sentence is Present Cards.content; the actual card array is Identify.candidates — objects with { id, name, title, company, location, seniority_level, confidence, linkedin_url, photo_url, summary }. Today the UI shows only the sentence.

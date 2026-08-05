@@ -112,15 +112,9 @@ function blockText(block: unknown): string | undefined {
   return undefined;
 }
 
-/**
- * Reads per-block outputs from the execute response. Block outputs may live
- * under json.blocks / json.output.blocks / json.logs / json.data.blocks —
- * both as an object keyed by block name and as an array of
- * { name|blockName|title, content|output } entries. Returns the FIRST
- * non-empty agent text in priority order, explicitly skipping table statuses.
- */
-export function pickAgentBlockContent(root: unknown): string | undefined {
-  const containers: unknown[] = [
+/** Shared list of containers where per-block outputs may live in the execute response. */
+function blockContainers(root: unknown): unknown[] {
+  return [
     getField(root, 'blocks'),
     getField(getField(root, 'output'), 'blocks'),
     getField(getField(root, 'data'), 'blocks'),
@@ -132,31 +126,47 @@ export function pickAgentBlockContent(root: unknown): string | undefined {
     getField(root, 'data'),
     root,
   ];
+}
 
+/** Resolves a named block from a container — keyed object shape or array-of-entries shape. */
+function findNamedBlock(container: unknown, name: string): unknown {
+  if (!container || typeof container !== 'object') return undefined;
+
+  // Shape A: object keyed by block name — blocks["Present Cards"]
+  const keyed = getField(container, name);
+  if (keyed !== undefined && keyed !== null) return keyed;
+
+  // Shape B: array of block entries with a name-ish field.
+  if (Array.isArray(container)) {
+    for (const item of container) {
+      const itemName =
+        asText(getField(item, 'name')) ??
+        asText(getField(item, 'blockName')) ??
+        asText(getField(item, 'block')) ??
+        asText(getField(item, 'title')) ??
+        asText(getField(item, 'label'));
+      if (itemName && itemName.toLowerCase() === name.toLowerCase()) {
+        return item;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Reads per-block outputs from the execute response. Block outputs may live
+ * under json.blocks / json.output.blocks / json.logs / json.data.blocks —
+ * both as an object keyed by block name and as an array of
+ * { name|blockName|title, content|output } entries. Returns the FIRST
+ * non-empty agent text in priority order, explicitly skipping table statuses.
+ */
+export function pickAgentBlockContent(root: unknown): string | undefined {
+  const containers = blockContainers(root);
   for (const name of AGENT_BLOCK_NAMES) {
     for (const container of containers) {
-      if (!container || typeof container !== 'object') continue;
-
-      // Shape A: object keyed by block name — blocks["Present Cards"].content
-      const keyed = getField(container, name);
-      const keyedText = blockText(keyed);
-      if (keyedText) return keyedText;
-
-      // Shape B: array of block entries with a name-ish field.
-      if (Array.isArray(container)) {
-        for (const item of container) {
-          const itemName =
-            asText(getField(item, 'name')) ??
-            asText(getField(item, 'blockName')) ??
-            asText(getField(item, 'block')) ??
-            asText(getField(item, 'title')) ??
-            asText(getField(item, 'label'));
-          if (itemName && itemName.toLowerCase() === name.toLowerCase()) {
-            const text = blockText(item);
-            if (text) return text;
-          }
-        }
-      }
+      const block = findNamedBlock(container, name);
+      const text = blockText(block);
+      if (text) return text;
     }
   }
   return undefined;
@@ -333,127 +343,212 @@ export function parseWorkflowResponse(raw: string): string | null {
 
   // Standard path: plain JSON body. Prefer the NAMED AGENT blocks (Format
   // Export → Apollo Contact Finder → Present Cards) so trailing table-status
-  // strings never win, then fall back to the generic multi-branch pick and
-  // finally the recursive scan.
-  let parsed: unknown;
+  // strings never win, then the generic multi-branch shapes, then a
+  // recursive depth-limited scan.
   try {
-    parsed = JSON.parse(trimmed);
+    const parsed: unknown = JSON.parse(trimmed);
+    const agent = pickAgentBlockContent(parsed);
+    if (agent) return agent;
+    const picked = pickWorkflowMessage(parsed);
+    if (picked && !looksLikeInternalPayload(picked)) return picked;
+    return extractReply(parsed);
   } catch {
-    // Not JSON at all — a bare prose body may be the answer itself.
-    return !looksLikeInternalPayload(trimmed) && !isTableStatus(trimmed) ? trimmed : null;
+    // Not JSON at all — a bare prose body is acceptable as long as it isn't
+    // internal plumbing.
+    if (!looksLikeInternalPayload(trimmed) && !isTableStatus(trimmed)) {
+      return trimmed;
+    }
+    return null;
   }
-  const agent = pickAgentBlockContent(parsed);
-  if (agent) return agent;
-  const picked = pickWorkflowMessage(parsed);
-  if (picked && !looksLikeInternalPayload(picked)) return picked;
-  return extractReply(parsed);
 }
 
 /* ------------------------------------------------------------------ */
-/*  Structured candidates — Identify.candidates[]                      */
+/* Structured candidates (Identify block / combined search payload)    */
 /* ------------------------------------------------------------------ */
 
-function asNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string' && value.trim() && !Number.isNaN(Number(value.trim()))) {
-    return Number(value.trim());
+/** Accepts only http(s) URLs — never emails or phone-looking strings. */
+function asHttpUrl(value: unknown): string | undefined {
+  const text = asText(value);
+  if (!text) return undefined;
+  if (!/^https?:\/\//i.test(text)) return undefined;
+  if (text.includes('@')) return undefined;
+  return text;
+}
+
+function asPositiveInt(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 1) {
+    return Math.floor(value);
+  }
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+    const n = Number(value.trim());
+    if (n >= 1) return n;
   }
   return undefined;
 }
 
-/** Normalizes confidence (0.92, 92, "92%", "high") into badge text. */
-function formatConfidence(value: unknown): string | undefined {
-  const num = asNumber(value);
-  if (num !== undefined) {
-    const pct = num > 0 && num <= 1 ? Math.round(num * 100) : Math.round(num);
-    if (pct >= 0 && pct <= 100) return `${pct}%`;
-    return String(num);
+/** Normalizes confidence to a compact badge string, e.g. 0.92 / 92 / "92%" → "92%". */
+function normalizeConfidence(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const pct = value > 0 && value <= 1 ? Math.round(value * 100) : Math.round(value);
+    return pct >= 0 && pct <= 100 ? `${pct}%` : undefined;
   }
-  return asText(value);
+  if (typeof value === 'string' && value.trim()) {
+    const t = value.trim();
+    if (t.endsWith('%')) return t;
+    const num = Number(t);
+    if (Number.isFinite(num)) {
+      const pct = num > 0 && num <= 1 ? Math.round(num * 100) : Math.round(num);
+      return pct >= 0 && pct <= 100 ? `${pct}%` : t;
+    }
+    return t; // qualitative values like "High" pass through
+  }
+  return undefined;
 }
 
 /**
- * Maps one Identify.candidates[] entry —
- * { id, name, title, company, location, seniority_level, confidence,
- *   linkedin_url, photo_url, summary } — into a CandidateCard. Email and
- * phone are NEVER read here: they don't exist at the search stage and must
- * never render on cards.
+ * Maps one raw Identify candidate — { id, name, title, company, location,
+ * seniority_level, confidence, linkedin_url, photo_url, summary } — into the
+ * UI's CandidateCard shape. Tolerates camelCase variants. Requires a name.
+ * Never surfaces emails or phones (none exist at this stage anyway).
  */
 function toCandidateCard(item: unknown, fallbackIndex: number): CandidateCard | null {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
   const rec = item as Record<string, unknown>;
-  const name = asText(rec.name) ?? asText(rec.full_name) ?? asText(rec.fullName);
+  const name = asText(rec['name']) ?? asText(rec['full_name']) ?? asText(rec['fullName']);
   if (!name) return null;
-  const idNum = asNumber(rec.id) ?? asNumber(rec.index);
-  const id = idNum !== undefined && idNum >= 1 ? Math.floor(idNum) : undefined;
+
+  const id =
+    asPositiveInt(rec['id']) ?? asPositiveInt(rec['candidate_id']) ?? asPositiveInt(rec['candidateId']);
+  const index = asPositiveInt(rec['index']) ?? id ?? fallbackIndex + 1;
+
   return {
-    index: id ?? fallbackIndex,
+    index,
     id,
     name,
-    title: asText(rec.title) ?? asText(rec.role) ?? '',
-    company: asText(rec.company) ?? asText(rec.organization) ?? '',
-    linkedin: asText(rec.linkedin_url) ?? asText(rec.linkedinUrl) ?? asText(rec.linkedin),
-    location: asText(rec.location),
-    seniority: asText(rec.seniority_level) ?? asText(rec.seniorityLevel) ?? asText(rec.seniority),
-    confidence: formatConfidence(rec.confidence),
-    photoUrl: asText(rec.photo_url) ?? asText(rec.photoUrl),
-    summary: asText(rec.summary),
+    title: asText(rec['title']) ?? asText(rec['job_title']) ?? asText(rec['jobTitle']) ?? '',
+    company:
+      asText(rec['company']) ??
+      asText(rec['company_name']) ??
+      asText(rec['companyName']) ??
+      asText(rec['organization']) ??
+      '',
+    linkedin:
+      asHttpUrl(rec['linkedin_url']) ?? asHttpUrl(rec['linkedinUrl']) ?? asHttpUrl(rec['linkedin']),
+    location: asText(rec['location']),
+    seniority:
+      asText(rec['seniority_level']) ?? asText(rec['seniorityLevel']) ?? asText(rec['seniority']),
+    confidence: normalizeConfidence(
+      rec['confidence'] ?? rec['confidence_score'] ?? rec['confidenceScore'] ?? rec['match_confidence'],
+    ),
+    photoUrl:
+      asHttpUrl(rec['photo_url']) ??
+      asHttpUrl(rec['photoUrl']) ??
+      asHttpUrl(rec['photo']) ??
+      asHttpUrl(rec['avatar_url']),
+    summary: asText(rec['summary']) ?? asText(rec['headline']),
   };
 }
 
+function mapCandidateArray(value: unknown): CandidateCard[] {
+  if (!Array.isArray(value)) return [];
+  const out: CandidateCard[] = [];
+  value.forEach((item, i) => {
+    const card = toCandidateCard(item, i);
+    if (card) out.push(card);
+  });
+  return out.slice(0, 10);
+}
+
 /**
- * Depth-limited walk that collects EVERY `candidates` array in the payload —
- * whether the workflow returns a combined { message, candidates } object on
- * the search branch, or the array lives on the Identify block's per-block
- * output (blocks / logs / output containers, keyed objects or arrays of
- * block entries). JSON embedded inside strings is parsed and searched too.
+ * Depth-limited recursive scan for the FIRST usable `candidates` array
+ * anywhere in the payload — this covers the combined search-branch object
+ * { mode, selected_ids, candidates, message } under any wrapper (result /
+ * output / data / blocks) AND candidates arrays embedded as JSON strings.
  */
-function collectCandidateArrays(value: unknown, depth: number, out: CandidateCard[][]): void {
-  if (depth > 8 || value === null || value === undefined) return;
+function findCandidates(value: unknown, depth: number): CandidateCard[] {
+  if (depth > 7 || value === null || value === undefined) return [];
 
   if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (
-      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-      (trimmed.startsWith('[') && trimmed.endsWith(']'))
-    ) {
+    const t = value.trim();
+    if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
       try {
-        collectCandidateArrays(JSON.parse(trimmed) as unknown, depth + 1, out);
+        return findCandidates(JSON.parse(t) as unknown, depth + 1);
       } catch {
-        // Not embedded JSON — ignore.
+        return [];
       }
     }
-    return;
+    return [];
   }
 
   if (Array.isArray(value)) {
-    for (const item of value) collectCandidateArrays(item, depth + 1, out);
-    return;
+    for (const item of value) {
+      const found = findCandidates(item, depth + 1);
+      if (found.length > 0) return found;
+    }
+    return [];
   }
 
   if (typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    const raw = record['candidates'];
-    if (Array.isArray(raw)) {
-      const cards: CandidateCard[] = [];
-      raw.forEach((item, i) => {
-        const card = toCandidateCard(item, i + 1);
-        if (card) cards.push(card);
-      });
-      if (cards.length > 0) out.push(cards);
-    }
-    for (const [key, child] of Object.entries(record)) {
-      if (key === 'candidates') continue;
-      collectCandidateArrays(child, depth + 1, out);
+    const own = mapCandidateArray(getField(value, 'candidates'));
+    if (own.length > 0) return own;
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      const found = findCandidates(child, depth + 1);
+      if (found.length > 0) return found;
     }
   }
+
+  return [];
+}
+
+/** Candidate sources on a single block: block.candidates, block.output.candidates, JSON-string content. */
+function blockCandidates(block: unknown): CandidateCard[] {
+  if (block === undefined || block === null) return [];
+  const direct = mapCandidateArray(getField(block, 'candidates'));
+  if (direct.length > 0) return direct;
+  const fromOutput = mapCandidateArray(getField(getField(block, 'output'), 'candidates'));
+  if (fromOutput.length > 0) return fromOutput;
+  const fromContentObj = mapCandidateArray(getField(getField(block, 'content'), 'candidates'));
+  if (fromContentObj.length > 0) return fromContentObj;
+  // content / output may themselves be JSON strings holding { candidates: [...] }
+  for (const key of ['content', 'output', 'message'] as const) {
+    const text = asText(getField(block, key));
+    if (text && (text.startsWith('{') || text.startsWith('['))) {
+      try {
+        const parsed: unknown = JSON.parse(text);
+        const cards = findCandidates(parsed, 0);
+        if (cards.length > 0) return cards;
+      } catch {
+        // not JSON — ignore
+      }
+    }
+  }
+  return [];
+}
+
+/**
+ * Reads the Identify block's per-block output — Identify.candidates holds the
+ * structured card array ({ id, name, title, company, location,
+ * seniority_level, confidence, linkedin_url, photo_url, summary }) even when
+ * the visible message comes from Present Cards.content.
+ */
+export function pickIdentifyCandidates(root: unknown): CandidateCard[] {
+  const containers = blockContainers(root);
+  for (const container of containers) {
+    const block = findNamedBlock(container, 'Identify');
+    const cards = blockCandidates(block);
+    if (cards.length > 0) return cards;
+  }
+  return [];
 }
 
 /**
  * Extracts structured candidates from the raw execute response. The visible
  * message (Present Cards.content) and the card data (Identify.candidates)
- * are SEPARATE — this reads the candidates array wherever it lives so the UI
- * can render one rich card per entry under the Present Cards heading.
+ * are SEPARATE in the payload — this reads BOTH shapes:
+ *  1. a combined { message, candidates } object on the search branch (found
+ *     via a recursive scan under any wrapper), or
+ *  2. the Identify block's per-block output candidates array.
+ * Returns [] on non-search turns so enrich/export replies stay pure Markdown.
  */
 export function extractWorkflowCandidates(raw: string): CandidateCard[] {
   const trimmed = raw.trim();
@@ -461,7 +556,7 @@ export function extractWorkflowCandidates(raw: string): CandidateCard[] {
 
   const roots: unknown[] = [];
   if (trimmed.startsWith('data:') || trimmed.includes('\ndata:')) {
-    roots.push(...parseSseChunks(trimmed));
+    roots.push(...parseSseChunks(trimmed).slice().reverse());
   } else {
     try {
       roots.push(JSON.parse(trimmed) as unknown);
@@ -470,63 +565,67 @@ export function extractWorkflowCandidates(raw: string): CandidateCard[] {
     }
   }
 
-  const found: CandidateCard[][] = [];
-  for (const root of roots) collectCandidateArrays(root, 0, found);
-  if (found.length === 0) return [];
-
-  // Prefer the richest array — the Identify block carries the full set.
-  let best: CandidateCard[] = [];
-  for (const cards of found) {
-    if (cards.length > best.length) best = cards;
+  for (const root of roots) {
+    // Preferred: combined { message, candidates } search-branch object.
+    const combined = findCandidates(root, 0);
+    if (combined.length > 0) return combined;
+    // Fallback: explicit Identify per-block output.
+    const identify = pickIdentifyCandidates(root);
+    if (identify.length > 0) return identify;
   }
-
-  // Dedupe by id + name and cap at 10 cards.
-  const seen = new Set<string>();
-  const out: CandidateCard[] = [];
-  for (const card of best) {
-    const key = `${card.id ?? card.index}-${card.name.toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(card);
-    if (out.length >= 10) break;
-  }
-  return out;
+  return [];
 }
 
 /* ------------------------------------------------------------------ */
-/*  Errors & redaction                                                 */
+/* Error copy & redaction                                              */
 /* ------------------------------------------------------------------ */
 
-/** Friendly, user-safe description of an upstream failure status. */
+/** Builds user-facing copy for an upstream non-2xx response. */
 export function describeWorkflowError(status: number, raw: string): string {
-  void raw; // full payload is logged server-side; never surfaced to the user
+  let detail: string | undefined;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    detail =
+      asText(getField(parsed, 'error')) ??
+      asText(getField(getField(parsed, 'error'), 'message')) ??
+      asText(getField(parsed, 'message'));
+  } catch {
+    detail = undefined;
+  }
+  const suffix =
+    detail && detail.length <= 200 && !looksLikeInternalPayload(detail) ? ` — ${detail}` : '';
+
   if (status === 401 || status === 403) {
-    return 'The search service rejected this request (authentication issue). Please try again in a moment.';
+    return `The search service rejected the request (HTTP ${status}, authorization${suffix}). Please try again in a moment.`;
   }
   if (status === 404) {
-    return 'The search service endpoint could not be found. Please try again in a moment.';
+    return `The search service endpoint was not found (HTTP 404${suffix}). Please try again in a moment.`;
   }
   if (status === 429) {
-    return 'The search service is handling a lot of requests right now. Please wait a few seconds and try again.';
+    return `The search service is receiving too many requests right now (HTTP 429${suffix}). Please wait a few seconds and try again.`;
+  }
+  if (status === 504 || status === 502) {
+    return `The search service timed out upstream (HTTP ${status}${suffix}). Deep searches can take several minutes — please try again.`;
   }
   if (status >= 500) {
-    return `The search service hit an internal error (HTTP ${status}). Please try again in a moment.`;
+    return `The search service hit an internal error (HTTP ${status}${suffix}). Please try again in a moment.`;
   }
-  return `The search service returned an unexpected response (HTTP ${status}). Please try again in a moment.`;
+  return `The search service returned HTTP ${status}${suffix}. Please try again in a moment.`;
 }
 
 /**
- * Defense in depth: phone numbers must never reach the chat. Replaces
- * phone-like digit runs (8–15 digits with common separators) while leaving
- * URLs and ids untouched.
+ * Defense-in-depth: strips phone-number-looking sequences from any text
+ * shown to the user. Emails are allowed (enrichment's whole point); phones
+ * are never surfaced at any stage.
  */
 export function redactPhones(text: string): string {
-  return text.replace(
-    /(^|[^\w/.=&-])(\+?\d[\d\s().-]{7,}\d)/g,
-    (full: string, prefix: string, num: string) => {
-      const digits = num.replace(/\D/g, '');
-      if (digits.length >= 8 && digits.length <= 15) return `${prefix}[phone hidden]`;
-      return full;
-    },
-  );
+  return text
+    .replace(/\+\d{8,15}\b/g, '[phone removed]')
+    .replace(
+      /(?:\+\d{1,3}[\s.\-]?)?(?:\(\d{2,4}\)[\s.\-]?|\b\d{2,4}[\s.\-])\d{3,4}[\s.\-]\d{3,4}\b/g,
+      (match) => {
+        const digits = match.replace(/\D/g, '');
+        return digits.length >= 8 && digits.length <= 15 ? '[phone removed]' : match;
+      },
+    );
 }
