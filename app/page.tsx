@@ -1,7 +1,7 @@
-import ChatClient from '@/components/ChatClient';
+import ProspectConsoleClient from '@/components/ProspectConsoleClient';
 
 export const dynamic = 'force-dynamic';
 
 export default function HomePage() {
-  return <ChatClient />;
+  return <ProspectConsoleClient />;
 }

@@ -63,3 +63,47 @@ export interface QuickPhrase {
   label: string;
   message: string;
 }
+
+/* ------------------------------------------------------------------ */
+/* Prospect Lens console contract (/api/identify + /api/enrich)        */
+/* ------------------------------------------------------------------ */
+
+/** Enrichment lifecycle for a console contact. */
+export type ProspectStatus = 'identified' | 'enriched' | 'no_email';
+
+/**
+ * One contact exactly as /api/identify returns it:
+ * { id, full_name, title, company_name, location, seniority, confidence,
+ *   linkedin_url, photo_url, work_email: '', status: 'identified' }.
+ * work_email/status are updated in place by /api/enrich responses.
+ */
+export interface ProspectContact {
+  id: number;
+  full_name: string;
+  title: string;
+  company_name: string;
+  location: string;
+  seniority: string;
+  /** Normalized display string, e.g. "92%". */
+  confidence: string;
+  linkedin_url: string;
+  photo_url: string;
+  /** Verified work email — empty string until enrichment succeeds. */
+  work_email: string;
+  status: ProspectStatus;
+}
+
+/** Response body from POST /api/identify. */
+export interface IdentifyApiResponse {
+  conversationId: string;
+  contacts: ProspectContact[];
+  message: string;
+}
+
+/** Response body from POST /api/enrich (one candidate per call). */
+export interface EnrichApiResponse {
+  id: number;
+  work_email: string;
+  status: 'enriched' | 'no_email';
+  message: string;
+}

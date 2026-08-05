@@ -1,21 +1,22 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-05T14:39:47.835Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-05T15:37:21.021Z.
 
 ## Overview
 
-Prospect Lens Console — conversational prospect search with pre-enrichment candidate cards, multi-select, and one-shot Apollo enrichment merged back onto the same cards.
+Prospect Lens Console — search for professional contacts via the Prospect Lens workflow, render candidate cards, and enrich verified work emails per contact.
 
 **Repository:** `prospectlens-v10`  
-**File count:** 36
+**File count:** 37
 
 ## Features
 
-- Identify results render immediately as selectable candidate cards (before enrichment)
-- Multi-select with Select all / Clear controls and a sticky Enrich N selected button
-- Single enrich request for all selected ids (enrich: <ids>) on the same conversationId
-- Per-card loading spinner during enrichment; results merged in place (email + copy, or muted No email available)
-- Dark-enterprise glass cards with glowing selected borders and purple→blue gradient pills
+- Identify contacts via /api/identify with { query, conversationId } and render cards from contacts[]
+- Per-contact enrichment via /api/enrich ({ id, conversationId, full_name, company_name }) — one credit per person
+- Enrich selected loops sequentially, one request per contact, merging work_email/status by id
+- Client-side computed counts (enriched / no email) — never read from the API
+- CSV export with real fields: full_name, title, company_name, location, seniority, work_email, status, linkedin_url
+- Stable conversationId persisted in component state and echoed on every identify/enrich call
 
 ## Tech Stack
 
@@ -62,6 +63,7 @@ Prospect Lens Console — conversational prospect search with pre-enrichment can
 - `components/ChatClient.tsx`
 - `components/Markdown.tsx`
 - `components/ParticleField.tsx`
+- `components/ProspectConsoleClient.tsx`
 - `components/QuickChips.tsx`
 - `components/TypingIndicator.tsx`
 - `components/arena-email-provider.tsx`
@@ -114,6 +116,7 @@ Prospect Lens Console — conversational prospect search with pre-enrichment can
 - `components/ChatClient.tsx`
 - `components/Markdown.tsx`
 - `components/ParticleField.tsx`
+- `components/ProspectConsoleClient.tsx`
 - `components/QuickChips.tsx`
 - `components/TypingIndicator.tsx`
 - `components/arena-email-provider.tsx`
@@ -135,31 +138,39 @@ Prospect Lens Console — conversational prospect search with pre-enrichment can
 
 ## Latest Change
 
-- **Updated at:** 2026-08-05T14:39:47.835Z
-- **Request:** Prospect Lens — show identified contacts as selectable cards BEFORE enrichment, with multi-select + an Enrich button.
+- **Updated at:** 2026-08-05T15:37:21.021Z
+- **Request:** The app is now pointed at the Prospect Lens workflow. /api/identify/route.ts and /api/enrich/route.ts have already been rewritten to call Prospect Lens and return a specific JSON shape. Do not change those two route files. The problem is app/page.tsx still uses the OLD API contract, so cards and emails don't render. Fix page.tsx (and the small items below) to match the routes exactly. Change ONLY data-wiring/logic — do not alter the visual design, layout, styling, or copy.
 
-Problem to fix: Right now the identified contacts do not render before enrichment. Cards only appear after Apollo enrichment runs. I want the identify results to appear as a card list immediately, let the user select multiple, and only then enrich the selected ones.
+1. Fix the identify request/response wiring in page.tsx → runIdentify()
 
-Do not change any workflow logic, the identify search, or the enrichment call. This is a frontend/UI change only. Do not alter layout structure beyond adding the pre-enrichment card grid, selection, and Enrich button. Preserve all existing content and functionality.
+The identify route reads only query (and optional conversationId) and returns { conversationId, contacts, message }. It does NOT return reply, company, mode, counts.
+Persist the returned conversationId in component state (add const [conversationId, setConversationId] = useState('')) and send it back on every subsequent identify/enrich call.
+Replace reads of data.reply with data.message; render that message in the existing reply panel (keep the reply state variable/UI, just feed it from data.message).
+Remove the data.company / company handling and the data.mode === 'no_company' branch (the route never sends them). Keep a simple empty-state message when contacts is empty, driven off data.message.
+Drop the advanced-search fields from the request body (route ignores company_domain, titles, limit, seniorities). Either keep the advanced UI purely cosmetic or fold its values into the query string — do not send unused keys.
+2. Fix the enrich request/response wiring in page.tsx → enrich()
 
-1. Render identify results as cards (pre-enrichment). The identify/search response already returns a candidates array. Each item has: id, name, title, company, company_domain, location, seniority_level, confidence, photo_url, linkedin_url, summary. As soon as this array arrives, render it as a card grid — do NOT wait for enrichment. Hide the plain text intro once cards are present.
+The enrich route enriches ONE candidate per call and expects body { id, conversationId, full_name, company_name }. It returns { id, work_email, status, message } where status is 'enriched' or 'no_email'.
+Change enrich() to take a single contact (not an array of ids). For "Enrich selected", loop and call the route once per selected contact (sequentially) so each spends exactly one credit for one person.
+Send the full contact fields the route needs: { id: c.id, conversationId, full_name: c.full_name, company_name: c.company_name }.
+On response, merge by id: set that contact's work_email and status from the response. Remove the old data.contacts[] / byId bulk-merge and the data.enriched/offTarget/unmatched counts handling (the route doesn't return those).
+3. Reconcile the counts UI
 
-Each card shows:
+The routes never return enriched/offTarget/unmatched. Either remove the counts pill bar, or compute it client-side from contacts (e.g. count status === 'enriched' and status === 'no_email'). Do not read counts from the API response.
+4. Fix the Contact type / field names to match the route output
 
-Profile picture — photo_url in a rounded avatar with a soft ring. photo_url can be null: on empty or image onError, fall back to a circular initials avatar generated from name. Never show a broken image.
-Name (bold), title, company, location.
-Seniority and confidence as small badges.
-LinkedIn — if linkedin_url is present, a pill "View LinkedIn" button opening it in a new tab (target="_blank" rel="noopener"); hide the button if linkedin_url is null.
-No email at this stage (none exists yet).
-2. Multi-select + Enrich button.
+Identify returns each contact as: { id, full_name, title, company_name, location, seniority, confidence, linkedin_url, photo_url, work_email:'', status:'identified' }.
+The card currently reads c.company || c.company_name — keep that fallback, but ensure company_name is the primary field used everywhere (CSV export currently uses company, which will be blank — change export column to company_name).
+Remove references to fields the routes never send: apollo_person_id, email_status, email_deliverable, matched_org, email_company_match, enriched_offtarget. Simplify the post-enrich badges to: verified/found when work_email is present (status === 'enriched'), and "No email" when status === 'no_email'. Drop the off-target ("amber") branch entirely.
+5. CSV export
 
-Each card is selectable via a checkbox (or click-to-toggle) with a glowing border on selected cards.
-Add "Select all" / "Clear" controls above the grid.
-A sticky "Enrich N selected" button below the grid, disabled when nothing is selected.
-On click, send only the selected candidates to the existing enrich step in ONE request, keeping the same conversationId for the session so the workflow can match candidates by their stored id: { "input": "enrich: <comma-separated selected ids>", "conversationId": "<same session id>" } (Match the exact shape the enrich branch already expects — it keys off the candidate id.)
-Show a per-card loading spinner on the selected cards only while enrichment runs; keep unselected cards untouched.
-3. Merge enrichment results back onto the SAME cards. When the enrich response returns, update each selected card in place — do not render a separate list. For each returned { id, email, email_status }:
+Update the export columns to the real fields: ['full_name','title','company_name','location','seniority','work_email','status','linkedin_url'].
+6. Env / config (already correct — verify only)
 
-If email is present → show it with a copy button.
-If email_status is unavailable / no email → show a muted "No email available". Apollo-only: no personal or guessed-email fallback. Do not show phone.
-Design: Apply the dark-enterprise design language — deep navy background, rounded 16–20px glass cards with thin glowing borders, avatar soft ring, purple→blue gradient pill buttons with soft hover glow, muted secondary text, 8px spacing system.
+.env.example and .env.local.example already define PROSPECT_LENS_URL and PROSPECT_LENS_API_KEY. Confirm next.config.js / any config doesn't still reference the old pure-muon vars. The user must set a real PROSPECT_LENS_API_KEY in Vercel + local .env.local.
+Acceptance criteria
+
+After a search, cards render immediately from contacts[] with name, title, company, location, seniority, avatar, LinkedIn — no email shown yet.
+Clicking "Get email" on a card calls enrich once for that person and populates work_email on that card (verified email like dshah@hubspot.com appears); "Enrich selected" does the same per selected card.
+Phone is never displayed anywhere.
+No runtime reads of data.reply, data.company, data.counts, or data.contacts (bulk) remain.

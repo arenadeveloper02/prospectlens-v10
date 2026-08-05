@@ -15,7 +15,7 @@ model ChatMessage {
   role           String
   content        String
   createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
 
   @@index([conversationId])
 }
