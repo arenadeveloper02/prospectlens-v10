@@ -127,3 +127,39 @@ export interface EnrichBatchApiResponse {
   contacts?: EnrichedPerson[];
   message: string;
 }
+
+/* ------------------------------------------------------------------ */
+/* Console page contract (app/page.tsx ↔ /api/enrich picks flow)       */
+/* ------------------------------------------------------------------ */
+
+/** One contact row as the console page holds it (string ids for React keys and merging). */
+export interface ConsoleContact {
+  id: string;
+  full_name: string;
+  title: string;
+  company_name: string;
+  company_domain: string;
+  location: string;
+  linkedin_url: string;
+  /** Verified work email — empty string until enrichment succeeds. */
+  work_email: string;
+  /** 'verified' | 'personal' | '' — resolved from the enrich turn. */
+  email_status: string;
+  email_deliverable: boolean | null;
+  /** 'identified' | 'enriched' | 'no_email_found' (route) | 'no_email' (legacy). */
+  status: string;
+  photo_url?: string;
+  seniority?: string;
+  confidence?: string;
+}
+
+/** Response body from POST /api/enrich — bare-picks selection contract. */
+export interface EnrichConsoleResponse {
+  contacts: ConsoleContact[];
+  enriched: number;
+  offTarget: number;
+  unmatched: number;
+  message: string;
+  error?: string;
+  detail?: string;
+}
