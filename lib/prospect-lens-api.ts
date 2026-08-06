@@ -10,6 +10,9 @@ import type { EnrichedPerson, ProspectContact } from '@/lib/types';
  *
  * The Start trigger expects a FLAT object with ONLY `input` and
  * `conversationId` — there is NO `inputs` wrapper and NO selectedId field.
+ * The workflow SAVES identified candidates under the conversationId, and the
+ * enrich turn RELOADS them by that same id — so the client generates one id
+ * per search session and reuses it verbatim on every enrich call.
  * The execute API returns the workflow result nested under `output`, so
  * responses are always read as `const out = data.output ?? data` and fields
  * are read on that unwrapped object — never top-level.
@@ -147,8 +150,10 @@ export function toContact(rec: unknown, index: number): ProspectContact | null {
 
 /**
  * Reads enriched people from out.selected_details_json (array or JSON string),
- * falling back to out.candidates and then out.row.data.candidates_json,
- * pulling work_email for each entry.
+ * falling back to out.candidates and then out.row.data.candidates_json.
+ * The verified email is read from work_email, FALLING BACK to personal_email
+ * (then a generic email field) — and the workflow's status: "enriched" is
+ * treated as the success flag even when the email string is empty.
  */
 export function toEnrichedPeople(out: unknown): EnrichedPerson[] {
   let list = toArrayMaybeJson(getField(out, 'selected_details_json'));
@@ -166,13 +171,22 @@ export function toEnrichedPeople(out: unknown): EnrichedPerson[] {
       if (n >= 1) id = n;
     }
     const name = asStr(getField(item, 'full_name')) || asStr(getField(item, 'name'));
-    const emailRaw = asStr(getField(item, 'work_email')) || asStr(getField(item, 'email'));
+    // selected_details_json[].work_email → personal_email → email. Apollo-only,
+    // never guessed — anything without an '@' is discarded.
+    const emailRaw =
+      asStr(getField(item, 'work_email')) ||
+      asStr(getField(item, 'personal_email')) ||
+      asStr(getField(item, 'email'));
     const email = emailRaw.includes('@') ? emailRaw : '';
+    // status: "enriched" is the workflow's success flag.
+    const statusRaw = asStr(getField(item, 'status')).toLowerCase();
+    const status: 'enriched' | 'no_email' =
+      email || statusRaw === 'enriched' ? 'enriched' : 'no_email';
     results.push({
       id,
       full_name: name,
       work_email: email,
-      status: email ? 'enriched' : 'no_email',
+      status,
     });
   });
   return results;

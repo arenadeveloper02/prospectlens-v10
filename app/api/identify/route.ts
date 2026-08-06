@@ -22,7 +22,10 @@ const UPSTREAM_ABORT_MS = 295_000;
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json().catch(() => null)) as { query?: unknown } | null;
+    const body = (await request.json().catch(() => null)) as {
+      query?: unknown;
+      conversationId?: unknown;
+    } | null;
     const query = typeof body?.query === 'string' ? body.query.trim() : '';
 
     if (!query) {
@@ -42,10 +45,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // A fresh conversationId per search. The workflow keys its stored
-    // candidates on this value — it is returned to the client, which MUST
-    // reuse it verbatim for every enrich call in this conversation.
-    const conversationId = randomUUID();
+    // The client generates ONE stable conversation id per search session and
+    // reuses it for every enrich call — the workflow keys its stored
+    // candidates on this value. Accept the client's id when provided;
+    // otherwise mint a fresh one and return it so the client can reuse it.
+    const clientCid =
+      typeof body?.conversationId === 'string' ? body.conversationId.trim() : '';
+    const conversationId =
+      clientCid && clientCid.length <= 128 ? clientCid : randomUUID();
 
     const { url, key } = getProspectLensConfig();
     const controller = new AbortController();
@@ -62,7 +69,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
           'x-api-key': key,
         },
-        body: JSON.stringify({ input: query, conversationId: conversationId ?? '' }),
+        body: JSON.stringify({ input: query, conversationId }),
         signal: controller.signal,
         cache: 'no-store',
       });

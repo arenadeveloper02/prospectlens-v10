@@ -8,8 +8,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Chat transcript log written best-effort by app/api/chat/route.ts.
-// Additive only — no existing columns are modified.
 model ChatMessage {
   id             String   @id @default(cuid())
   conversationId String

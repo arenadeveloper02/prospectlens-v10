@@ -1,21 +1,23 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-06T08:38:04.675Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-06T09:03:09.768Z.
 
 ## Overview
 
-A conversational Prospect Lens console for finding, selecting, and enriching professional contacts via the Arena workflow API.
+A conversational Prospect Lens console for finding, selecting, and enriching professional contacts via the Arena workflow, with a stable per-search conversation id reused across identify and enrich calls.
 
 **Repository:** `prospectlens-v10`  
 **File count:** 41
 
 ## Features
 
-- Identify professional contacts through the Prospect Lens workflow
-- Select candidate cards and enrich them with verified emails
-- CSV export of all contacts
-- Chat transcript logging via Prisma ChatMessage
-- Arena email gate with iframe-safe headers
+- Identify leadership contacts via the Prospect Lens workflow with a flat { input, conversationId } contract
+- One stable crypto.randomUUID conversation id generated per search and reused verbatim for enrich
+- Selection-driven batch enrichment reading selected_details_json[].work_email with personal_email fallback
+- status: 'enriched' treated as the success flag when merging results onto the same cards
+- CSV export of identified and enriched contacts
+- Best-effort chat message logging to Neon Postgres via Prisma
+- Arena email gate with access-denied page and cross-origin iframe headers
 
 ## Tech Stack
 
@@ -145,25 +147,32 @@ A conversational Prospect Lens console for finding, selecting, and enriching pro
 
 ## Latest Change
 
-- **Updated at:** 2026-08-06T08:38:04.675Z
-- **Request:** PROMPT — Wire Leadership Finder app to Prospect Lens
+- **Updated at:** 2026-08-06T09:03:09.768Z
+- **Request:** PROMPT — Wire Leadership Finder enrich round-trip to Prospect Lens
 
-In .env.example and .env.local.example, set:
+The Prospect Lens workflow saves identified candidates under the conversation id. Enrich reloads them by that same id. So the client MUST generate a conversation id on search and reuse it on enrich.
 
+.env.example and .env.local.example:
 code
 
 PROSPECT_LENS_URL=https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute
 PROSPECT_LENS_API_KEY=sk-sim-FKxMxim0lRkjj3Ssw3oh4lAGF9Ewaz25
-Set the same two in Vercel → Settings → Environment Variables (Production + Preview), then redeploy.
+Set the same two in Vercel → Settings → Env Vars (Production + Preview), then redeploy.
 
-In app/api/identify/route.ts, the Start trigger expects a flat object with input and conversationId — send:
-
+app/page.tsx — generate ONE stable conversation id per search session and reuse it for the enrich call:
 ts
 
-body: JSON.stringify({ input: query, conversationId: conversationId ?? "" }),
-In app/api/enrich/route.ts, send a bare pick as input (the Selection Gate needs "1", not a sentence) and drop the unused selectedId:
+// on a NEW search:
+const conversationId = crypto.randomUUID();
+// store it in state; pass the SAME value to both /api/identify and /api/enrich
+app/api/identify/route.ts — send flat input + conversationId:
+ts
 
+body: JSON.stringify({ input: query, conversationId }),
+app/api/enrich/route.ts — send the bare pick as input (e.g. "1" or "1, 3") and the SAME conversationId from the search; drop the unused selectedId:
 ts
 
 body: JSON.stringify({ input: String(contactId), conversationId }),
-Keep all card styling/layout and the extractCandidates / toContact / extractEnriched helpers unchanged — the visual design is correct.
+The enrich card should read the email from the workflow's selected_details_json[].work_email (falling back to personal_email), and treat status: "enriched" as the success flag.
+
+Keep all card styling/layout unchanged — the design is correct.
