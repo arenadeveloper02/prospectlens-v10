@@ -15,6 +15,62 @@ interface EnrichCounts {
   unmatched: number;
 }
 
+const QUICK_PREFIXES = ['C-Level of ', 'CEO of ', 'VP of ', 'Managing Director of ', 'Director of '];
+
+const EXAMPLES = ['CEO of Figma', 'C-Level of Notion', 'VP of Marketing at Stripe', 'Director of Sales at Canva'];
+
+const SEARCH_INPUT_ID = 'console-search-input';
+
+function focusSearchInput(caret?: number) {
+  const el = document.querySelector<HTMLInputElement>(`#${SEARCH_INPUT_ID}`);
+  if (!el) return;
+  el.focus();
+  if (typeof caret === 'number') {
+    requestAnimationFrame(() => el.setSelectionRange(caret, caret));
+  }
+}
+
+function initials(name?: string): string {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  const first = parts[0]?.charAt(0) ?? '';
+  const last = parts.length > 1 ? parts[parts.length - 1]?.charAt(0) ?? '' : '';
+  const combined = (first + last).toUpperCase();
+  return combined || '?';
+}
+
+function avatarGradient(name?: string): string {
+  const s = name || '?';
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  const h2 = (h + 40) % 360;
+  return `linear-gradient(135deg, hsl(${h} 68% 34%), hsl(${h2} 72% 22%))`;
+}
+
+function Avatar({ c }: { c: ConsoleContact }) {
+  const [err, setErr] = useState(false);
+  if (c.photo_url && !err) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img className="avatar" src={c.photo_url} alt={c.full_name} onError={() => setErr(true)} />;
+  }
+  return (
+    <div
+      className="avatar"
+      style={{
+        background: avatarGradient(c.full_name),
+        color: '#F5F7FA',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 700,
+        letterSpacing: '0.5px',
+      }}
+    >
+      {initials(c.full_name)}
+    </div>
+  );
+}
+
 function toConsoleContact(p: ProspectContact): ConsoleContact {
   return {
     id: String(p.id),
@@ -164,6 +220,7 @@ export default function HomePage() {
   }
 
   const pendingIds = contacts.filter((c) => !c.work_email).map((c) => c.id);
+  const hasResults = contacts.length > 0;
 
   return (
     <div className="app" style={{ height: 'auto', minHeight: '100dvh' }}>
@@ -185,6 +242,8 @@ export default function HomePage() {
 
       <form className="composer" style={{ paddingTop: 16 }} onSubmit={runIdentify}>
         <input
+          id={SEARCH_INPUT_ID}
+          aria-label="Search for a role and company"
           className="composer-input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -195,6 +254,43 @@ export default function HomePage() {
           {searching ? 'Searching…' : 'Search'}
         </button>
       </form>
+
+      <div className="quick-inserts">
+        {QUICK_PREFIXES.map((p) => (
+          <button
+            key={p}
+            type="button"
+            className="qi-chip"
+            onClick={() => {
+              setQuery(p);
+              focusSearchInput(p.length);
+            }}
+          >
+            {p.trim()}
+          </button>
+        ))}
+      </div>
+
+      {!hasResults && !message && !searching ? (
+        <div className="welcome">
+          <div className="welcome-title">👋 Welcome to Leadership Finder</div>
+          <p>
+            Find any company&apos;s decision-makers in seconds, then unlock verified work emails
+            only for the people you choose — no wasted credits.
+          </p>
+          <ol className="welcome-steps">
+            <li>
+              <b>Search</b> a role + company (or tap a quick-insert above).
+            </li>
+            <li>
+              <b>Review</b> the leadership cards we surface.
+            </li>
+            <li>
+              <b>Enrich</b> the ones you want to get a verified email.
+            </li>
+          </ol>
+        </div>
+      ) : null}
 
       {error ? (
         <div
@@ -239,7 +335,7 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      {contacts.length > 0 ? (
+      {hasResults ? (
         <div
           style={{
             display: 'flex',
@@ -274,6 +370,7 @@ export default function HomePage() {
         {contacts.map((c, i) => (
           <div key={c.id} className="md-card">
             <div className="md-card-num">{i + 1}</div>
+            <Avatar c={c} />
             <div className="md-card-body" style={{ flex: 1 }}>
               <p className="md-card-line">
                 {c.full_name}
@@ -319,10 +416,26 @@ export default function HomePage() {
         ))}
       </div>
 
-      {contacts.length === 0 && !searching ? (
-        <div style={{ padding: '24px 4px', color: '#a3adc4', fontSize: 13.5 }}>
-          Run a search to identify contacts — e.g. &quot;VP Engineering at fintech startups in NYC&quot;.
-          Then enrich the cards you want verified emails for.
+      {!hasResults && !searching ? (
+        <div style={{ padding: '0 4px 32px' }}>
+          <div style={{ color: '#a3adc4', fontSize: 13.5, marginBottom: 10 }}>
+            Try one of these to get started:
+          </div>
+          <div className="chips" style={{ padding: 0 }}>
+            {EXAMPLES.map((ex) => (
+              <button
+                key={ex}
+                type="button"
+                className="chip"
+                onClick={() => {
+                  setQuery(ex);
+                  focusSearchInput(ex.length);
+                }}
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
     </div>

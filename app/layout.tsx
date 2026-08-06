@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Poppins } from 'next/font/google';
 import './globals.css';
 import './chat-polish.css';
+import './console-polish.css';
 import { ArenaEmailProvider } from '@/components/arena-email-provider';
 import { getArenaEmailId } from '@/lib/arena-email';
 

@@ -1,44 +1,52 @@
-# Prospect Lens Console
+# prospectlens-v10
 
-A conversational console for finding, selecting, and enriching professional contacts, powered by the Arena Prospect Lens workflow API.
+Prospect Lens Console — added generated avatars (photo with monogram fallback), a first-open welcome panel, quick-insert prefix chips under the search bar, and refreshed example chips. No workflow, API route, or enrichment logic changed.
 
 ## Features
 
-- Chat interface with quick-pick candidate numbers and quick phrase chips
-- Streams the Arena workflow execute endpoint with the full `selectedOutputs` list (candidates, enrichment, exports)
-- Robust SSE/stream response parsing with prioritized workflow output keys
-- Phone number redaction on assistant replies
-- Best-effort chat logging to Postgres via Prisma
-- Arena email gate (iframe-safe cookies + access-denied page)
+- Generated gradient monogram avatars with photo fallback on every contact card
+- Welcome panel shown before the first search explaining the identify → review → enrich flow
+- Quick-insert prefix chips (C-Level of, CEO of, VP of, …) that pre-fill and focus the search input
+- Example query chips in the empty state matching the new search pattern
+- Identify + selective enrich flow with CSV export preserved unchanged
 
 ## Tech Stack
 
-- Next.js ^15.3.3 (App Router) + React ^19
-- Tailwind CSS v3 + Arena DS tokens
-- TypeScript (strict)
+- Next.js ^15.3.3 (App Router)
+- React ^19.0.0
+- Tailwind CSS v3
+- TypeScript
 - Prisma + PostgreSQL (Neon on Vercel)
 
-## API Configuration
+## Routes
 
-The app calls the Prospect Lens workflow at:
+- `/`
+- `/access-denied`
 
+## Getting Started
+
+```bash
+npm install
+cp .env.example .env
+npm run dev
 ```
-POST https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute
-```
 
-with headers `X-API-Key` and `Content-Type: application/json`, body `{ input, stream: true, selectedOutputs: [...] }`.
+Open [http://localhost:3000](http://localhost:3000).
 
-Defaults are baked in; override with environment variables:
+## Database
 
-- `PROSPECTLENS_API_URL` — workflow execute URL
-- `PROSPECTLENS_API_KEY` — workflow API key
+1. Copy `.env.example` to `.env` for local development
+2. Set `DATABASE_URL` to your Postgres connection string
+3. Run `npx prisma db push` before `npm run dev` if tables are missing
 
-## Local Setup
+On Vercel, `DATABASE_URL` is injected when Neon is connected to the project.
 
-1. `npm install`
-2. Copy `.env.example` to `.env` and set `DATABASE_URL`
-3. `npm run dev`
+## Scripts
+
+- `npm run dev` — start the development server
+- `npm run build` — production build (runs Prisma generate/push when configured)
+- `npm run start` — run the production server locally
 
 ## Deploy
 
-Vercel build runs `prisma generate && prisma db push && next build`. `DATABASE_URL` is injected by the Neon integration.
+This project is intended for deployment on [Vercel](https://vercel.com). Connect the GitHub repository and deploy the `main` branch.
