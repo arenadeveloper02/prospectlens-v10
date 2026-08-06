@@ -6,12 +6,13 @@ import type { EnrichedPerson, ProspectContact } from '@/lib/types';
  *
  *   POST <PROSPECT_LENS_URL>
  *   headers: { 'x-api-key': <PROSPECT_LENS_API_KEY> }
- *   body:    { "inputs": { "input": "<string>", "conversationId": "<string>" } }
+ *   body:    { "input": "<string>", "conversationId": "<string>" }
  *
- * The workflow's Start block accepts ONLY `input` and `conversationId` — there
- * is NO selectedId field. The execute API returns the workflow result nested
- * under `output`, so responses are always read as `const out = data.output ?? data`
- * and fields are read on that unwrapped object — never top-level.
+ * The Start trigger expects a FLAT object with ONLY `input` and
+ * `conversationId` — there is NO `inputs` wrapper and NO selectedId field.
+ * The execute API returns the workflow result nested under `output`, so
+ * responses are always read as `const out = data.output ?? data` and fields
+ * are read on that unwrapped object — never top-level.
  *
  * Candidate placement (both are handled):
  *   - out.candidates                       — plain array
@@ -21,7 +22,7 @@ import type { EnrichedPerson, ProspectContact } from '@/lib/types';
 
 const DEFAULT_URL =
   'https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute';
-const DEFAULT_KEY = 'sk-sim-WdwOSPQf0WHp5JiHs1jIGgj-kJ4ypP3q';
+const DEFAULT_KEY = 'sk-sim-FKxMxim0lRkjj3Ssw3oh4lAGF9Ewaz25';
 
 export interface ProspectLensConfig {
   url: string;

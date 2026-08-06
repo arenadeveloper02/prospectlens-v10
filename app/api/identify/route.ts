@@ -53,15 +53,16 @@ export async function POST(request: NextRequest) {
     const started = Date.now();
 
     try {
-      // Workflow contract: the Start block accepts ONLY `input` and
-      // `conversationId`, wrapped in an `inputs` object. Auth via x-api-key.
+      // Workflow contract: the Start trigger expects a FLAT object with
+      // `input` and `conversationId` — NOT wrapped in an `inputs` object.
+      // Auth via x-api-key.
       const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': key,
         },
-        body: JSON.stringify({ inputs: { input: query, conversationId } }),
+        body: JSON.stringify({ input: query, conversationId: conversationId ?? '' }),
         signal: controller.signal,
         cache: 'no-store',
       });

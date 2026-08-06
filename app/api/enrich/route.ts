@@ -17,8 +17,9 @@ const UPSTREAM_ABORT_MS = 295_000;
  * Enrichment is driven purely by card selection. The client sends the picked
  * card numbers as a BARE selection string — just numbers, e.g. "1" or "1, 3"
  * (no sentence) — plus the SAME conversationId returned by /api/identify.
- * That selection string IS the workflow input — there is NO selectedId field
- * in the contract. Body: { inputs: { input: String(selection), conversationId } }.
+ * The Selection Gate needs the bare pick as `input` — there is NO selectedId
+ * field in the contract. The Start trigger expects a FLAT body:
+ * { input: String(selection), conversationId } (no `inputs` wrapper).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -62,7 +63,9 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
           'x-api-key': key,
         },
-        body: JSON.stringify({ inputs: { input, conversationId } }),
+        // FLAT Start-trigger contract: bare pick as `input`, no selectedId,
+        // no `inputs` wrapper.
+        body: JSON.stringify({ input, conversationId }),
         signal: controller.signal,
         cache: 'no-store',
       });
