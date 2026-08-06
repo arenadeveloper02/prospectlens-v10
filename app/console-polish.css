@@ -1,5 +1,5 @@
-/* Console polish additions — welcome panel, quick-insert chips, avatars.
-   Kept in a separate stylesheet so existing globals.css rules are untouched. */
+/* Console polish additions — LIGHT theme pass. Welcome panel, quick-insert
+   chips, avatars. Colors only — class names and structure unchanged. */
 
 .avatar {
   width: 44px;
@@ -7,7 +7,7 @@
   border-radius: 12px;
   object-fit: cover;
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(15, 23, 42, 0.10);
   font-size: 15px;
 }
 
@@ -15,20 +15,20 @@
   margin: 14px 4px 18px;
   padding: 18px 20px;
   border-radius: 18px;
-  background: linear-gradient(135deg, rgba(26, 115, 232, 0.12), rgba(0, 167, 214, 0.06));
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
+  background: linear-gradient(135deg, rgba(124, 108, 255, 0.08), rgba(77, 184, 255, 0.05));
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
 }
 
 .welcome-title {
   font-size: 18px;
   font-weight: 700;
-  color: #f5f7fa;
+  color: #0F172A;
   margin-bottom: 6px;
 }
 
 .welcome p {
-  color: rgba(245, 247, 250, 0.7);
+  color: rgba(15, 23, 42, 0.62);
   margin: 0 0 10px;
   font-size: 14px;
   line-height: 1.6;
@@ -37,7 +37,7 @@
 .welcome-steps {
   margin: 0;
   padding-left: 18px;
-  color: rgba(245, 247, 250, 0.75);
+  color: rgba(15, 23, 42, 0.66);
   display: grid;
   gap: 4px;
   font-size: 13.5px;
@@ -57,14 +57,14 @@
   font-size: 13px;
   cursor: pointer;
   font-family: inherit;
-  color: #f5f7fa;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #334155;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.10);
   transition: all 0.18s ease;
 }
 
 .qi-chip:hover {
-  border-color: rgba(26, 115, 232, 0.6);
-  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.12);
+  border-color: rgba(124, 108, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(124, 108, 255, 0.12);
   transform: translateY(-1px);
 }

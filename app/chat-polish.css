@@ -1,6 +1,7 @@
-/* Prospect Lens chat polish — role labels, timestamps, notice styling,
-   welcome panel, message entrance animation, rich candidate cards, and a
-   375px mobile pass. Uses existing Arena DS tokens only. */
+/* Prospect Lens chat polish — LIGHT theme pass. Role labels, timestamps,
+   notice styling, welcome panel, message entrance animation, rich candidate
+   cards, and a 375px mobile pass. Colors only — all class names and
+   structural rules preserved. */
 
 /* ---------- Message groups (bubble + meta) ---------- */
 .msg-group {
@@ -31,16 +32,16 @@
   padding: 0 4px;
   font-size: 11px;
   letter-spacing: var(--ds-type-label-letter-spacing, 0.25px);
-  color: #8b95ae;
+  color: rgba(15, 23, 42, 0.45);
 }
 
 .msg-role {
   font-weight: 500;
-  color: #a3adc4;
+  color: rgba(15, 23, 42, 0.60);
 }
 
 .row-user .msg-role {
-  color: #b6d3f9;
+  color: #5b4fd6;
 }
 
 .msg-avatar {
@@ -48,26 +49,26 @@
   height: 8px;
   flex-shrink: 0;
   border-radius: var(--ds-radius-full, 9999px);
-  background: var(--ds-color-graphic-sea-blue-default, #00A7D6);
-  box-shadow: 0 0 8px rgba(0, 167, 214, 0.55);
+  background: #4DB8FF;
+  box-shadow: 0 0 8px rgba(77, 184, 255, 0.45);
 }
 
 .row-user .msg-avatar {
-  background: var(--ds-color-brand-default, #1A73E8);
-  box-shadow: 0 0 8px rgba(26, 115, 232, 0.55);
+  background: #7C6CFF;
+  box-shadow: 0 0 8px rgba(124, 108, 255, 0.45);
 }
 
 .msg-time {
-  color: #7c86a0;
+  color: rgba(15, 23, 42, 0.40);
   font-size: 11px;
 }
 
 .msg-notice-tag {
   padding: 1px 8px;
   border-radius: var(--ds-radius-pill, 80px);
-  border: 1px solid rgba(251, 129, 69, 0.5);
-  background: rgba(251, 129, 69, 0.14);
-  color: var(--ds-color-primitive-warning-400, #FDB38F);
+  border: 1px solid rgba(180, 83, 9, 0.35);
+  background: rgba(251, 191, 36, 0.18);
+  color: #92400e;
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.25px;
@@ -100,26 +101,26 @@
 /* ---------- Notice (fallback / didn't-fully-complete) replies ---------- */
 .bubble-notice {
   border-left: 3px solid var(--ds-color-status-warning-default, #FB8145);
-  border-color: rgba(251, 129, 69, 0.45);
-  background: rgba(251, 129, 69, 0.09);
+  border-color: rgba(245, 158, 11, 0.40);
+  background: rgba(255, 247, 237, 0.92);
 }
 
 .bubble-notice .md-para {
-  color: #f2e3d9;
+  color: #713f12;
 }
 
 /* ---------- Welcome / getting-started panel ---------- */
 .bubble-welcome {
   padding: 22px 24px;
-  border: 1px solid rgba(26, 115, 232, 0.42);
-  background: linear-gradient(160deg, rgba(26, 115, 232, 0.15), rgba(0, 167, 214, 0.08));
-  box-shadow: 0 0 34px rgba(26, 115, 232, 0.18), 0 4px 16px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(124, 108, 255, 0.30);
+  background: linear-gradient(160deg, rgba(124, 108, 255, 0.08), rgba(77, 184, 255, 0.06));
+  box-shadow: 0 8px 28px rgba(124, 108, 255, 0.10);
   border-bottom-left-radius: var(--ds-radius-lg, 16px);
 }
 
 .bubble-welcome .md-heading,
 .bubble-welcome strong {
-  color: #ffffff;
+  color: #0F172A;
 }
 
 /* ---------- Tables stay scrollable, never squeezed ---------- */
@@ -129,7 +130,7 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* ---------- Structured candidate cards (glass, glow, avatar ring) ---------- */
+/* ---------- Structured candidate cards (white surface, soft glow, avatar ring) ---------- */
 .cand-list {
   display: flex;
   flex-direction: column;
@@ -145,18 +146,17 @@
   text-align: left;
   padding: 14px 16px;
   border-radius: var(--ds-radius-lg, 16px);
-  border: 1px solid rgba(26, 115, 232, 0.35);
-  background: linear-gradient(160deg, rgba(26, 115, 232, 0.12), rgba(179, 100, 215, 0.06));
-  backdrop-filter: blur(8px);
-  box-shadow: 0 0 22px rgba(26, 115, 232, 0.1);
-  color: #eef2fa;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  color: #0F172A;
   transition: all var(--ds-motion-duration-fast, 100ms)
     var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
 }
 
 .cand-card:hover {
-  border-color: rgba(26, 115, 232, 0.65);
-  box-shadow: 0 0 28px rgba(26, 115, 232, 0.2);
+  border-color: rgba(124, 108, 255, 0.45);
+  box-shadow: 0 4px 18px rgba(124, 108, 255, 0.14);
   transform: translateY(-1px);
 }
 
@@ -165,7 +165,7 @@
   height: 28px;
   flex-shrink: 0;
   border-radius: var(--ds-radius-sm, 8px);
-  background: linear-gradient(135deg, var(--ds-color-brand-default, #1A73E8), var(--ds-color-graphic-sea-blue-default, #00A7D6));
+  background: linear-gradient(135deg, #7C6CFF, #4DB8FF);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -182,9 +182,9 @@
   flex-shrink: 0;
   border-radius: var(--ds-radius-full, 9999px);
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.28), 0 0 14px rgba(26, 115, 232, 0.3);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.04);
+  box-shadow: 0 0 0 3px rgba(124, 108, 255, 0.18), 0 0 14px rgba(124, 108, 255, 0.14);
 }
 
 .cand-avatar-fallback {
@@ -195,7 +195,7 @@
   font-weight: 600;
   letter-spacing: 0.5px;
   color: #ffffff;
-  background: linear-gradient(135deg, var(--ds-color-graphic-purple-default, #B364D7), var(--ds-color-brand-default, #1A73E8));
+  background: linear-gradient(135deg, #7C6CFF, #4DB8FF);
 }
 
 .cand-body {
@@ -209,17 +209,17 @@
 .cand-name {
   font-size: 14.5px;
   font-weight: 600;
-  color: #ffffff;
+  color: #0F172A;
 }
 
 .cand-line {
   font-size: 13px;
-  color: #cdd5e6;
+  color: rgba(15, 23, 42, 0.62);
 }
 
 .cand-loc {
   font-size: 12px;
-  color: #a3adc4;
+  color: rgba(15, 23, 42, 0.40);
 }
 
 .cand-badges {
@@ -235,25 +235,25 @@
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.25px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #cdd5e6;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  color: rgba(15, 23, 42, 0.60);
 }
 
 .cand-badge-seniority {
-  border-color: rgba(179, 100, 215, 0.5);
-  background: rgba(179, 100, 215, 0.14);
-  color: #ddb8f0;
+  border-color: rgba(179, 100, 215, 0.40);
+  background: rgba(179, 100, 215, 0.10);
+  color: #7e3ba3;
 }
 
 .cand-badge-confidence {
-  border-color: rgba(59, 200, 132, 0.5);
-  background: rgba(59, 200, 132, 0.12);
-  color: #89deb5;
+  border-color: rgba(22, 163, 74, 0.35);
+  background: rgba(22, 163, 74, 0.10);
+  color: #166534;
 }
 
 .cand-summary {
   font-size: 12px;
-  color: #9aa4bc;
+  color: rgba(15, 23, 42, 0.50);
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -275,28 +275,28 @@
   align-items: center;
   padding: 6px 14px;
   border-radius: var(--ds-radius-pill, 80px);
-  background: linear-gradient(135deg, var(--ds-color-graphic-purple-default, #B364D7), var(--ds-color-brand-default, #1A73E8));
+  background: linear-gradient(135deg, #7C6CFF, #4DB8FF);
   color: #ffffff;
   font-size: 12px;
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
-  box-shadow: 0 2px 10px rgba(179, 100, 215, 0.3);
+  box-shadow: 0 2px 10px rgba(124, 108, 255, 0.25);
   transition: all var(--ds-motion-duration-fast, 100ms)
     var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
 }
 
 .cand-linkedin:hover {
-  filter: brightness(1.12);
+  filter: brightness(1.06);
   transform: translateY(-1px);
 }
 
 .cand-select {
   padding: 6px 14px;
   border-radius: var(--ds-radius-pill, 80px);
-  border: 1px solid rgba(0, 167, 214, 0.55);
-  background: rgba(0, 167, 214, 0.14);
-  color: #a5e4f4;
+  border: 1px solid rgba(77, 184, 255, 0.50);
+  background: rgba(77, 184, 255, 0.10);
+  color: #0369a1;
   font-size: 12px;
   font-weight: 500;
   font-family: inherit;
@@ -307,8 +307,8 @@
 }
 
 .cand-select:hover:not(:disabled) {
-  background: rgba(0, 167, 214, 0.32);
-  color: #ffffff;
+  background: rgba(77, 184, 255, 0.22);
+  color: #075985;
 }
 
 .cand-select:disabled {
@@ -319,7 +319,7 @@
 .cand-hint {
   margin: 2px 0 0;
   font-size: 11.5px;
-  color: #8b95ae;
+  color: rgba(15, 23, 42, 0.45);
   letter-spacing: 0.25px;
 }
 
@@ -334,9 +334,9 @@
 }
 
 .cand-card-selected {
-  border-color: rgba(26, 115, 232, 0.9);
-  background: linear-gradient(160deg, rgba(26, 115, 232, 0.2), rgba(179, 100, 215, 0.1));
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.45), 0 0 30px rgba(26, 115, 232, 0.35);
+  border-color: rgba(124, 108, 255, 0.85);
+  background: rgba(124, 108, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(124, 108, 255, 0.18), 0 4px 20px rgba(124, 108, 255, 0.16);
 }
 
 .cand-card-enriching {
@@ -354,12 +354,12 @@
 .cand-checkbox {
   width: 18px;
   height: 18px;
-  accent-color: var(--ds-color-brand-default, #1A73E8);
+  accent-color: #7C6CFF;
   cursor: pointer;
 }
 
 .cand-check-done {
-  color: #89deb5;
+  color: #16a34a;
   font-size: 15px;
   font-weight: 600;
 }
@@ -374,7 +374,7 @@
 
 .cand-count {
   font-size: 12px;
-  color: #a3adc4;
+  color: rgba(15, 23, 42, 0.55);
   letter-spacing: 0.25px;
 }
 
@@ -386,9 +386,9 @@
 .cand-tool-btn {
   padding: 5px 12px;
   border-radius: var(--ds-radius-pill, 80px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.07);
-  color: #cdd5e6;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  color: rgba(15, 23, 42, 0.62);
   font-size: 12px;
   font-weight: 500;
   font-family: inherit;
@@ -398,9 +398,9 @@
 }
 
 .cand-tool-btn:hover:not(:disabled) {
-  border-color: rgba(26, 115, 232, 0.6);
-  background: rgba(26, 115, 232, 0.18);
-  color: #ffffff;
+  border-color: rgba(124, 108, 255, 0.5);
+  background: rgba(124, 108, 255, 0.08);
+  color: #4338ca;
 }
 
 .cand-tool-btn:disabled {
@@ -421,7 +421,7 @@
   display: flex;
   justify-content: flex-end;
   padding: 8px 0 2px;
-  background: linear-gradient(180deg, transparent, rgba(7, 11, 22, 0.7));
+  background: linear-gradient(180deg, transparent, rgba(247, 248, 251, 0.92));
 }
 
 .cand-enrich-btn {
@@ -429,21 +429,21 @@
   padding: 0 24px;
   border: none;
   border-radius: var(--ds-radius-pill, 80px);
-  background: linear-gradient(135deg, var(--ds-color-graphic-purple-default, #B364D7), var(--ds-color-brand-default, #1A73E8));
+  background: linear-gradient(135deg, #7C6CFF, #4DB8FF);
   color: #ffffff;
   font-size: 14px;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: 0 4px 18px rgba(179, 100, 215, 0.35);
+  box-shadow: 0 4px 18px rgba(124, 108, 255, 0.30);
   transition: all var(--ds-motion-duration-fast, 100ms)
     var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
 }
 
 .cand-enrich-btn:hover:not(:disabled) {
-  filter: brightness(1.12);
+  filter: brightness(1.06);
   transform: translateY(-1px);
-  box-shadow: 0 6px 26px rgba(26, 115, 232, 0.45);
+  box-shadow: 0 6px 26px rgba(124, 108, 255, 0.40);
 }
 
 .cand-enrich-btn:disabled {
@@ -463,8 +463,8 @@
   height: 18px;
   flex-shrink: 0;
   border-radius: var(--ds-radius-full, 9999px);
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-top-color: var(--ds-color-brand-default, #1A73E8);
+  border: 2px solid rgba(15, 23, 42, 0.15);
+  border-top-color: #7C6CFF;
   animation: cand-spin 0.8s linear infinite;
 }
 
@@ -479,16 +479,16 @@
 .cand-email-text {
   font-size: 12.5px;
   font-weight: 500;
-  color: #89deb5;
+  color: #166534;
   overflow-wrap: anywhere;
 }
 
 .cand-copy {
   padding: 3px 10px;
   border-radius: var(--ds-radius-pill, 80px);
-  border: 1px solid rgba(59, 200, 132, 0.5);
-  background: rgba(59, 200, 132, 0.12);
-  color: #89deb5;
+  border: 1px solid rgba(22, 163, 74, 0.40);
+  background: rgba(22, 163, 74, 0.10);
+  color: #166534;
   font-size: 11px;
   font-weight: 500;
   font-family: inherit;
@@ -499,15 +499,15 @@
 }
 
 .cand-copy:hover {
-  background: rgba(59, 200, 132, 0.28);
-  color: #ffffff;
+  background: rgba(22, 163, 74, 0.20);
+  color: #14532d;
 }
 
 .cand-noemail {
   margin-top: 4px;
   font-size: 12px;
   font-style: italic;
-  color: #7c86a0;
+  color: #b45309;
 }
 
 /* ---------- Mobile pass (~375px) ---------- */
@@ -545,74 +545,15 @@
     padding: 0 18px;
   }
 
-  .pick-row {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding-bottom: 4px;
-  }
-
-  .pick-row::-webkit-scrollbar {
-    display: none;
-  }
-
-  .pick-btn,
-  .pick-label {
-    flex-shrink: 0;
-    white-space: nowrap;
-  }
-
-  .chips {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .chips::-webkit-scrollbar {
-    display: none;
-  }
-
-  .chip {
-    flex-shrink: 0;
-    white-space: nowrap;
-  }
-
   .cand-card {
-    padding: 12px;
     flex-wrap: wrap;
-  }
-
-  .cand-avatar {
-    width: 36px;
-    height: 36px;
-  }
-
-  .cand-summary {
-    display: none;
+    padding: 12px;
   }
 
   .cand-actions {
     flex-direction: row;
+    align-items: center;
     width: 100%;
     justify-content: flex-end;
-  }
-
-  .cand-check {
-    width: 20px;
-  }
-
-  .cand-enrich-bar {
-    justify-content: stretch;
-  }
-
-  .cand-enrich-btn {
-    width: 100%;
-  }
-
-  .md-table th,
-  .md-table td {
-    white-space: nowrap;
   }
 }

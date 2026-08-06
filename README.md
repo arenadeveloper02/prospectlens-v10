@@ -1,14 +1,16 @@
 # prospectlens-v10
 
-Prospect Lens Console — added generated avatars (photo with monogram fallback), a first-open welcome panel, quick-insert prefix chips under the search bar, and refreshed example chips. No workflow, API route, or enrichment logic changed.
+Prospect Lens Console restyled with the standing LIGHT theme (thearena.ai-inspired): airy near-white canvas with soft indigo/violet glows, white surfaces with hairline borders, dark ink text, and the purple→blue accent gradient — colors only, with all layout, class names, avatar logic, welcome panel, quick-insert chips, and the identify → enrich → export flow preserved.
 
 ## Features
 
-- Generated gradient monogram avatars with photo fallback on every contact card
-- Welcome panel shown before the first search explaining the identify → review → enrich flow
-- Quick-insert prefix chips (C-Level of, CEO of, VP of, …) that pre-fill and focus the search input
-- Example query chips in the empty state matching the new search pattern
-- Identify + selective enrich flow with CSV export preserved unchanged
+- Light theme: #f7f8fb canvas with subtle indigo/violet radial glows
+- White surfaces with hairline borders and soft low-spread shadows
+- Dark ink text hierarchy (#0F172A primary, muted slate secondary, faint tertiary)
+- Purple→blue accent gradient (#7C6CFF → #4DB8FF) on primary buttons, links, and avatar monograms
+- Soft indigo focus/hover glow ring rgba(124,108,255,0.18)
+- Light-appropriate status tints: verified green, unavailable amber, error red
+- Identify → select → enrich → CSV export flow fully preserved
 
 ## Tech Stack
 

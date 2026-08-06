@@ -44,7 +44,7 @@ function avatarGradient(name?: string): string {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
   const h2 = (h + 40) % 360;
-  return `linear-gradient(135deg, hsl(${h} 68% 34%), hsl(${h2} 72% 22%))`;
+  return `linear-gradient(135deg, hsl(${h} 70% 52%), hsl(${h2} 72% 42%))`;
 }
 
 function Avatar({ c }: { c: ConsoleContact }) {
@@ -58,7 +58,7 @@ function Avatar({ c }: { c: ConsoleContact }) {
       className="avatar"
       style={{
         background: avatarGradient(c.full_name),
-        color: '#F5F7FA',
+        color: '#FFFFFF',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -289,6 +289,21 @@ export default function HomePage() {
               <b>Enrich</b> the ones you want to get a verified email.
             </li>
           </ol>
+          <div className="quick-inserts" style={{ margin: '12px 0 0' }}>
+            {EXAMPLES.map((ex) => (
+              <button
+                key={ex}
+                type="button"
+                className="qi-chip"
+                onClick={() => {
+                  setQuery(ex);
+                  focusSearchInput(ex.length);
+                }}
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
 
@@ -298,9 +313,9 @@ export default function HomePage() {
             margin: '0 4px 12px',
             padding: '12px 16px',
             borderRadius: 12,
-            border: '1px solid rgba(243, 26, 26, 0.45)',
-            background: 'rgba(243, 26, 26, 0.12)',
-            color: '#ffb9b9',
+            border: '1px solid rgba(220, 38, 38, 0.30)',
+            background: 'rgba(254, 226, 226, 0.60)',
+            color: '#b91c1c',
             fontSize: 13.5,
           }}
         >
@@ -314,9 +329,9 @@ export default function HomePage() {
             margin: '0 4px 12px',
             padding: '12px 16px',
             borderRadius: 12,
-            border: '1px solid rgba(255, 255, 255, 0.14)',
-            background: 'rgba(255, 255, 255, 0.06)',
-            color: '#cdd5e6',
+            border: '1px solid rgba(15, 23, 42, 0.08)',
+            background: '#ffffff',
+            color: 'rgba(15, 23, 42, 0.62)',
             fontSize: 13.5,
           }}
         >
@@ -356,86 +371,161 @@ export default function HomePage() {
             </button>
             <button
               type="button"
-              className="md-btn md-btn-primary"
-              onClick={() => enrich(pendingIds)}
+              className="send-btn"
+              style={{ height: 34, padding: '0 16px', fontSize: 13 }}
               disabled={enrichingAll || pendingIds.length === 0}
+              onClick={() => enrich(pendingIds)}
             >
-              {enrichingAll ? 'Enriching…' : `Enrich All (${pendingIds.length})`}
+              {enrichingAll ? 'Enriching…' : `Enrich all (${pendingIds.length})`}
             </button>
           </div>
         </div>
       ) : null}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 4px 32px' }}>
-        {contacts.map((c, i) => (
-          <div key={c.id} className="md-card">
-            <div className="md-card-num">{i + 1}</div>
-            <Avatar c={c} />
-            <div className="md-card-body" style={{ flex: 1 }}>
-              <p className="md-card-line">
-                {c.full_name}
-                {c.seniority ? ` · ${c.seniority}` : ''}
-                {c.confidence ? ` · ${c.confidence}` : ''}
-              </p>
-              <p className="md-card-line">{[c.title, c.company_name].filter(Boolean).join(' — ')}</p>
-              {c.location ? <p className="md-card-line">{c.location}</p> : null}
-              {c.linkedin_url ? (
-                <a
-                  className="md-link"
-                  style={{ fontSize: 13 }}
-                  href={c.linkedin_url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  LinkedIn profile
-                </a>
-              ) : null}
-              {c.work_email ? (
-                <p className="md-card-line" style={{ color: '#89deb5' }}>
-                  ✉ {c.work_email}
-                  {c.email_status ? ` (${c.email_status})` : ''}
-                </p>
-              ) : c.status === 'no_email_found' || c.status === 'no_email' ? (
-                <p className="md-card-line" style={{ color: '#f0a878' }}>
-                  No verified email found
-                </p>
-              ) : null}
-            </div>
-            {!c.work_email ? (
-              <button
-                type="button"
-                className="md-btn md-btn-primary"
-                style={{ alignSelf: 'flex-start' }}
-                onClick={() => enrich([c.id], c.id)}
-                disabled={Boolean(rowBusy[c.id]) || enrichingAll}
-              >
-                {rowBusy[c.id] ? 'Enriching…' : 'Enrich'}
-              </button>
-            ) : null}
-          </div>
-        ))}
-      </div>
-
-      {!hasResults && !searching ? (
-        <div style={{ padding: '0 4px 32px' }}>
-          <div style={{ color: '#a3adc4', fontSize: 13.5, marginBottom: 10 }}>
-            Try one of these to get started:
-          </div>
-          <div className="chips" style={{ padding: 0 }}>
-            {EXAMPLES.map((ex) => (
-              <button
-                key={ex}
-                type="button"
-                className="chip"
-                onClick={() => {
-                  setQuery(ex);
-                  focusSearchInput(ex.length);
+      {hasResults ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '0 4px 28px' }}>
+          {contacts.map((c) => {
+            const busy = Boolean(rowBusy[c.id]);
+            const enrichedRow = Boolean(c.work_email);
+            const noEmail =
+              !c.work_email && (c.status === 'no_email' || c.status === 'no_email_found');
+            return (
+              <div
+                key={c.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '14px 16px',
+                  borderRadius: 14,
+                  border: '1px solid rgba(15, 23, 42, 0.08)',
+                  background: '#ffffff',
+                  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.06)',
                 }}
               >
-                {ex}
-              </button>
-            ))}
-          </div>
+                <Avatar c={c} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: 14.5, fontWeight: 600, color: '#0F172A' }}>
+                    {c.full_name}
+                  </span>
+                  {c.title || c.company_name ? (
+                    <span style={{ fontSize: 13, color: 'rgba(15, 23, 42, 0.62)' }}>
+                      {c.title}
+                      {c.title && c.company_name ? ' · ' : ''}
+                      {c.company_name}
+                    </span>
+                  ) : null}
+                  {c.location ? (
+                    <span style={{ fontSize: 12, color: 'rgba(15, 23, 42, 0.40)' }}>{c.location}</span>
+                  ) : null}
+                  {c.seniority || c.confidence ? (
+                    <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+                      {c.seniority ? (
+                        <span
+                          style={{
+                            padding: '1px 8px',
+                            borderRadius: 999,
+                            fontSize: 10.5,
+                            fontWeight: 500,
+                            border: '1px solid rgba(179, 100, 215, 0.40)',
+                            background: 'rgba(179, 100, 215, 0.10)',
+                            color: '#7e3ba3',
+                          }}
+                        >
+                          {c.seniority}
+                        </span>
+                      ) : null}
+                      {c.confidence ? (
+                        <span
+                          style={{
+                            padding: '1px 8px',
+                            borderRadius: 999,
+                            fontSize: 10.5,
+                            fontWeight: 500,
+                            border: '1px solid rgba(22, 163, 74, 0.35)',
+                            background: 'rgba(22, 163, 74, 0.10)',
+                            color: '#166534',
+                          }}
+                        >
+                          {c.confidence} match
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : null}
+                  {c.work_email ? (
+                    <span
+                      style={{
+                        marginTop: 4,
+                        fontSize: 12.5,
+                        fontWeight: 500,
+                        color: '#166534',
+                        overflowWrap: 'anywhere',
+                      }}
+                    >
+                      {c.work_email}
+                      {c.email_status ? ` · ${c.email_status}` : ''}
+                    </span>
+                  ) : noEmail ? (
+                    <span style={{ marginTop: 4, fontSize: 12, fontStyle: 'italic', color: '#b45309' }}>
+                      No email found
+                    </span>
+                  ) : null}
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    gap: 8,
+                    flexShrink: 0,
+                  }}
+                >
+                  {c.linkedin_url ? (
+                    <a
+                      href={c.linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 999,
+                        background: 'linear-gradient(135deg, #7C6CFF, #4DB8FF)',
+                        color: '#ffffff',
+                        fontSize: 12,
+                        fontWeight: 500,
+                        textDecoration: 'none',
+                        whiteSpace: 'nowrap',
+                        boxShadow: '0 2px 8px rgba(124, 108, 255, 0.25)',
+                      }}
+                    >
+                      LinkedIn
+                    </a>
+                  ) : null}
+                  {!enrichedRow ? (
+                    <button
+                      type="button"
+                      disabled={busy || enrichingAll}
+                      onClick={() => enrich([c.id], c.id)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 999,
+                        border: '1px solid rgba(124, 108, 255, 0.45)',
+                        background: 'rgba(124, 108, 255, 0.08)',
+                        color: '#5b4fd6',
+                        fontSize: 12,
+                        fontWeight: 500,
+                        fontFamily: 'inherit',
+                        cursor: busy || enrichingAll ? 'default' : 'pointer',
+                        opacity: busy ? 0.6 : 1,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {busy ? 'Enriching…' : 'Enrich'}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </div>
