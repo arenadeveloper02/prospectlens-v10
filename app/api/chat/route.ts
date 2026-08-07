@@ -122,6 +122,10 @@ export async function POST(request: NextRequest) {
       // { input, conversationId } with the key in the x-api-key header.
       // conversationId is stable per browser session; the workflow keys saved
       // candidates on it, so it must never be renamed or regenerated per turn.
+      // The Arena session email rides along as `email` when present so history
+      // rows are keyed to this user.
+      const workflowPayload: Record<string, string> = { input: message, conversationId };
+      if (emailId) workflowPayload.email = emailId;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -129,7 +133,7 @@ export async function POST(request: NextRequest) {
           'x-api-key': key,
           Authorization: `Bearer ${key}`,
         },
-        body: JSON.stringify({ input: message, conversationId }),
+        body: JSON.stringify(workflowPayload),
         signal: controller.signal,
         cache: 'no-store',
       });

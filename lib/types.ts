@@ -163,3 +163,35 @@ export interface EnrichConsoleResponse {
   error?: string;
   detail?: string;
 }
+
+/* ------------------------------------------------------------------ */
+/* History panel contract (GET /api/history)                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One past search session parsed from the chat-history workflow's table rows:
+ * output.rows[].data — { message, candidates_json, conversation_id, email,
+ * updated_at }. candidates_json is parsed into the SAME ProspectContact shape
+ * the console uses, so history sessions support enrich + CSV export.
+ */
+export interface HistorySession {
+  /** Stable row id from the history table (rows[].id). */
+  rowId: string;
+  /** conversation_id the workflow keyed this session's candidates on — reused verbatim for enrich calls. */
+  conversationId: string;
+  /** Session email the row was stored under. */
+  email: string;
+  /** Assistant message stored for this session. */
+  message: string;
+  /** ISO timestamp — rows[].data.updated_at (fallbacks: last_updated, rows[].updatedAt). */
+  updatedAt: string;
+  /** Candidates parsed from candidates_json (may be empty). */
+  contacts: ProspectContact[];
+}
+
+/** Response body from GET /api/history. */
+export interface HistoryApiResponse {
+  sessions: HistorySession[];
+  message: string;
+  error?: string;
+}

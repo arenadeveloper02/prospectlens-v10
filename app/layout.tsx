@@ -4,7 +4,9 @@ import { Poppins } from 'next/font/google';
 import './globals.css';
 import './chat-polish.css';
 import './console-polish.css';
+import './history-polish.css';
 import { ArenaEmailProvider } from '@/components/arena-email-provider';
+import { HistoryPanel } from '@/components/HistoryPanel';
 import { getArenaEmailId } from '@/lib/arena-email';
 
 const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600', '700'] });
@@ -20,7 +22,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="en">
       <body className={poppins.className}>
-        <ArenaEmailProvider emailId={emailId}>{children}</ArenaEmailProvider>
+        <ArenaEmailProvider emailId={emailId}>
+          {emailId ? (
+            <div className="console-shell">
+              <div className="console-main">{children}</div>
+              <HistoryPanel />
+            </div>
+          ) : (
+            children
+          )}
+        </ArenaEmailProvider>
       </body>
     </html>
   );

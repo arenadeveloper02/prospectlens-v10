@@ -1,22 +1,20 @@
 # Repository Summary: prospectlens-v10
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-06T11:57:32.909Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-07T11:33:10.179Z.
 
 ## Overview
 
-Prospect Lens Console — a conversational console for finding, selecting, and enriching professional contacts, styled with the standing LIGHT theme.
+Prospect Lens Console with a right-side History panel: past search sessions loaded from the chat-history workflow keyed by the Arena session email, with the same enrich and CSV-export functionality. All workflow calls now include the session email.
 
 **Repository:** `prospectlens-v10`  
-**File count:** 41
+**File count:** 44
 
 ## Features
 
-- Leadership contact search via Arena workflow
-- Selective email enrichment (Apollo-only, never guessed)
-- CSV export of contacts
-- Best-effort chat message logging to Postgres
-- Arena email gate with access-denied page
-- Standing light theme inspired by thearena.ai
+- Right-side History panel listing past search sessions from the chat-history workflow
+- History sessions support Enrich (via /api/enrich with the stored conversation_id) and Export CSV
+- Session email from the Arena cookie is included in every PROSPECT_LENS_URL workflow request
+- Existing console UI, chat UI, identify/enrich flows unchanged
 
 ## Tech Stack
 
@@ -37,7 +35,6 @@ Prospect Lens Console — a conversational console for finding, selecting, and e
 
 ## Database Models
 
-- `AppSetting`
 - `ChatMessage`
 
 ## File Inventory
@@ -50,6 +47,7 @@ Prospect Lens Console — a conversational console for finding, selecting, and e
 - `app/console-polish.css`
 - `app/error.tsx`
 - `app/globals.css`
+- `app/history-polish.css`
 - `app/layout.tsx`
 - `app/not-found.tsx`
 - `app/page.tsx`
@@ -59,12 +57,14 @@ Prospect Lens Console — a conversational console for finding, selecting, and e
 - `app/api/chat/route.ts`
 - `app/api/enrich/route.ts`
 - `app/api/health/route.ts`
+- `app/api/history/route.ts`
 - `app/api/identify/route.ts`
 
 ### Components
 
 - `components/CandidateCards.tsx`
 - `components/ChatClient.tsx`
+- `components/HistoryPanel.tsx`
 - `components/Markdown.tsx`
 - `components/ParticleField.tsx`
 - `components/ProspectConsoleClient.tsx`
@@ -111,17 +111,20 @@ Prospect Lens Console — a conversational console for finding, selecting, and e
 - `app/api/chat/route.ts`
 - `app/api/enrich/route.ts`
 - `app/api/health/route.ts`
+- `app/api/history/route.ts`
 - `app/api/identify/route.ts`
 - `app/arena-ds-tokens.css`
 - `app/chat-polish.css`
 - `app/console-polish.css`
 - `app/error.tsx`
 - `app/globals.css`
+- `app/history-polish.css`
 - `app/layout.tsx`
 - `app/not-found.tsx`
 - `app/page.tsx`
 - `components/CandidateCards.tsx`
 - `components/ChatClient.tsx`
+- `components/HistoryPanel.tsx`
 - `components/Markdown.tsx`
 - `components/ParticleField.tsx`
 - `components/ProspectConsoleClient.tsx`
@@ -147,19 +150,60 @@ Prospect Lens Console — a conversational console for finding, selecting, and e
 
 ## Latest Change
 
-- **Updated at:** 2026-08-06T11:57:32.909Z
-- **Request:** Apply the Leadership Finder app's standing LIGHT theme (inspired by thearena.ai). This is the default for this tool and overrides any dark-theme default. Colors only — never change layout, structure, content, or functionality. Keep all existing class names and CSS variables so nothing reflows.
+- **Updated at:** 2026-08-07T11:33:10.179Z
+- **Request:** CRITICAL: Don't change any UI 
 
-Palette
+Add the history list to the right section, don't change any other UI, 
+Add all the funcationalities what you have done for this API PROSPECT_LENS_URL, 
+export csv, enrich add these in the History as well maitian the same functionalities 
 
-Canvas: soft near-white #f7f8fb with subtle indigo/violet radial glows in the corners (low opacity — bright and airy, not flat).
-Surfaces (cards, search bar, panels, popovers): white / near-white with light hairline borders (rgba(15,23,42,0.08)) and soft, low-spread shadows. No glassmorphic dark fills.
-Text: dark ink primary (#0F172A), muted slate secondary (rgba(15,23,42,0.62)), faint tertiary (rgba(15,23,42,0.40)).
-Accent (keep brand): purple→blue gradient (#7C6CFF → #4DB8FF) on primary buttons, links, focus rings, and avatar monograms.
-Focus/hover: soft indigo glow ring (rgba(124,108,255,0.18)) — gentle, not harsh.
-Status tints (light-appropriate): verified = green, unavailable = amber, error = red — as tinted backgrounds with readable dark text on white.
-Rules
+1) for the API 
+PROSPECT_LENS_URL=https://agent.thearena.ai/api/workflows/65d2b97b-19d6-4621-95d7-6ffe2400c90d/execute\nPROSPECT_LENS_API_KEY=sk-sim-FKxMxim0lRkjj3Ssw3oh4lAGF9Ewaz25
 
-Rounded corners, generous whitespace, clean minimal enterprise feel — premium but bright.
-Preserve the avatar logic, welcome message, quick-insert chips, and enrichment flow exactly.
-If any dark colors are hardcoded in page.tsx inline styles, convert only those color values to the light equivalents above — do not touch the markup or logic.
+Include email in the request take the email from the session 
+
+
+2) Chat history API :
+
+Request :
+curl -X POST \
+  -H "X-API-Key: sk-sim-FKxMxim0lRkjj3Ssw3oh4lAGF9Ewaz25" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"email from the session ","stream":false,"selectedOutputs":["table1.rows"]}' \
+  https://agent.thearena.ai/api/workflows/85c915ed-d7fc-4d76-ab1e-c1a93ca163ba/execute
+
+
+sample response 
+{
+    "success": true,
+    "executionId": "a1c1eb84-cb53-47e9-8df9-1ac80cab2274",
+    "output": {
+        "rows": [
+            {
+                "id": "row_c617793783244ac5aac76dba0cf5d4b7",
+                "data": {
+                    "message": "I can help you find professional contacts by searching for specific roles at companies. For example, you can ask for the VP of Sales at Notion, and I'll find matching people for you. Let me know who you're looking for!",
+                    "updated_at": "2026-08-03T12:13:57.733Z",
+                    "candidates_json": "[]",
+                    "last_updated": "2026-08-03T12:13:57.734Z",
+                    "conversation_id": "8c8372b8-024f-404c-8e24-b2fd633b2f3f",
+                    "email": "abc"
+                },
+                "executions": {},
+                "position": 0,
+                "orderKey": "a0",
+                "createdAt": "2026-08-03T12:12:55.838Z",
+                "updatedAt": "2026-08-07T11:00:35.286Z"
+            }
+        ],
+        "rowCount": 1,
+        "totalCount": 1,
+        "limit": 100,
+        "offset": 0
+    },
+    "metadata": {
+        "duration": 441.2442609965801,
+        "startTime": "2026-08-07T11:08:50.662Z",
+        "endTime": "2026-08-07T11:08:51.103Z"
+    }
+}

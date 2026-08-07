@@ -1,19 +1,11 @@
 // **NOTE: dont remove updatedAt in any tables **
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
-model AppSetting {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  value     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model ChatMessage {
@@ -24,6 +16,4 @@ model ChatMessage {
   content        String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @default(now()) @updatedAt
-
-  @@index([conversationId])
 }

@@ -9,6 +9,7 @@ import {
   toContact,
   unwrapOutput,
 } from '@/lib/prospect-lens-api';
+import { ARENA_EMAIL_COOKIE_NAME } from '@/lib/arena-email-constants';
 import type { ProspectContact } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +55,10 @@ export async function POST(request: NextRequest) {
     const conversationId =
       clientCid && clientCid.length <= 128 ? clientCid : randomUUID();
 
+    // Session email from the Arena cookie (set by middleware) — included in
+    // the workflow request so history rows are keyed to this user.
+    const emailId = request.cookies.get(ARENA_EMAIL_COOKIE_NAME)?.value?.trim() ?? '';
+
     const { url, key } = getProspectLensConfig();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), UPSTREAM_ABORT_MS);
@@ -62,14 +67,17 @@ export async function POST(request: NextRequest) {
     try {
       // Workflow contract: the Start trigger expects a FLAT object with
       // `input` and `conversationId` — NOT wrapped in an `inputs` object.
-      // Auth via x-api-key.
+      // The session email rides along as `email` when present. Auth via
+      // x-api-key.
+      const workflowPayload: Record<string, string> = { input: query, conversationId };
+      if (emailId) workflowPayload.email = emailId;
       const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': key,
         },
-        body: JSON.stringify({ input: query, conversationId }),
+        body: JSON.stringify(workflowPayload),
         signal: controller.signal,
         cache: 'no-store',
       });

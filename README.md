@@ -1,16 +1,13 @@
 # prospectlens-v10
 
-Prospect Lens Console restyled with the standing LIGHT theme (thearena.ai-inspired): airy near-white canvas with soft indigo/violet glows, white surfaces with hairline borders, dark ink text, and the purple→blue accent gradient — colors only, with all layout, class names, avatar logic, welcome panel, quick-insert chips, and the identify → enrich → export flow preserved.
+Prospect Lens Console with a right-side History panel: past search sessions loaded from the chat-history workflow keyed by the Arena session email, with the same enrich and CSV-export functionality. All workflow calls now include the session email.
 
 ## Features
 
-- Light theme: #f7f8fb canvas with subtle indigo/violet radial glows
-- White surfaces with hairline borders and soft low-spread shadows
-- Dark ink text hierarchy (#0F172A primary, muted slate secondary, faint tertiary)
-- Purple→blue accent gradient (#7C6CFF → #4DB8FF) on primary buttons, links, and avatar monograms
-- Soft indigo focus/hover glow ring rgba(124,108,255,0.18)
-- Light-appropriate status tints: verified green, unavailable amber, error red
-- Identify → select → enrich → CSV export flow fully preserved
+- Right-side History panel listing past search sessions from the chat-history workflow
+- History sessions support Enrich (via /api/enrich with the stored conversation_id) and Export CSV
+- Session email from the Arena cookie is included in every PROSPECT_LENS_URL workflow request
+- Existing console UI, chat UI, identify/enrich flows unchanged
 
 ## Tech Stack
 

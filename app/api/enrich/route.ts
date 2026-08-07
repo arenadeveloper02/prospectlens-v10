@@ -6,6 +6,7 @@ import {
   readMessage,
   unwrapOutput,
 } from '@/lib/prospect-lens-api';
+import { ARENA_EMAIL_COOKIE_NAME } from '@/lib/arena-email-constants';
 import type { ConsoleContact } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -70,7 +71,8 @@ function extractDetails(payload: unknown): Record<string, unknown>[] {
  * /api/identify. The workflow's Selection Gate expects a BARE pick string as
  * `input` ("1" or "1, 3") — never a sentence, never a selectedId field. The
  * Start trigger takes a FLAT body: { input, conversationId } (no `inputs`
- * wrapper). Verified emails are read from selected_details_json[].work_email.
+ * wrapper) plus the session `email` when present. Verified emails are read
+ * from selected_details_json[].work_email.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -115,21 +117,28 @@ export async function POST(request: NextRequest) {
     // The Selection Gate expects a BARE pick string: "1" or "1, 3".
     const input = picks.join(', ');
 
+    // Session email from the Arena cookie (set by middleware) — included in
+    // the workflow request so history rows are keyed to this user.
+    const emailId = request.cookies.get(ARENA_EMAIL_COOKIE_NAME)?.value?.trim() ?? '';
+
     const { url, key } = getProspectLensConfig();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), UPSTREAM_ABORT_MS);
     const started = Date.now();
 
     try {
+      // FLAT Start-trigger contract: bare pick as `input`, the SAME
+      // conversationId from the search turn, session `email` when present,
+      // no selectedId, no `inputs`.
+      const workflowPayload: Record<string, string> = { input, conversationId };
+      if (emailId) workflowPayload.email = emailId;
       const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': key,
         },
-        // FLAT Start-trigger contract: bare pick as `input`, the SAME
-        // conversationId from the search turn, no selectedId, no `inputs`.
-        body: JSON.stringify({ input, conversationId }),
+        body: JSON.stringify(workflowPayload),
         signal: controller.signal,
         cache: 'no-store',
       });
