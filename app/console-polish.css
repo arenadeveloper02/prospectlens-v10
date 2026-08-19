@@ -1,4 +1,4 @@
-/* Console polish additions — LIGHT theme pass. Welcome panel, quick-insert
+/* Console polish additions — Arena DS token pass. Welcome panel, quick-insert
    chips, avatars. Colors only — class names and structure unchanged. */
 
 .avatar {
@@ -7,7 +7,7 @@
   border-radius: 12px;
   object-fit: cover;
   flex-shrink: 0;
-  border: 1px solid rgba(15, 23, 42, 0.10);
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
   font-size: 15px;
 }
 
@@ -15,20 +15,20 @@
   margin: 14px 4px 18px;
   padding: 18px 20px;
   border-radius: 18px;
-  background: linear-gradient(135deg, rgba(124, 108, 255, 0.08), rgba(77, 184, 255, 0.05));
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+  background: linear-gradient(135deg, rgba(26, 115, 232, 0.06), rgba(0, 167, 214, 0.04));
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
+  box-shadow: var(--ds-elevation-sm, 0px 1px 2px rgba(44, 45, 51, 0.08));
 }
 
 .welcome-title {
   font-size: 18px;
   font-weight: 700;
-  color: #0F172A;
+  color: var(--ds-color-text-primary, #2C2D33);
   margin-bottom: 6px;
 }
 
 .welcome p {
-  color: rgba(15, 23, 42, 0.62);
+  color: var(--ds-color-text-secondary, #575A66);
   margin: 0 0 10px;
   font-size: 14px;
   line-height: 1.6;
@@ -37,7 +37,7 @@
 .welcome-steps {
   margin: 0;
   padding-left: 18px;
-  color: rgba(15, 23, 42, 0.66);
+  color: var(--ds-color-text-secondary, #575A66);
   display: grid;
   gap: 4px;
   font-size: 13.5px;
@@ -57,14 +57,14 @@
   font-size: 13px;
   cursor: pointer;
   font-family: inherit;
-  color: #334155;
-  background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.10);
+  color: var(--ds-color-text-secondary, #575A66);
+  background: var(--ds-color-surface-raised, #FFFFFF);
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
   transition: all 0.18s ease;
 }
 
 .qi-chip:hover {
-  border-color: rgba(124, 108, 255, 0.5);
-  box-shadow: 0 0 0 3px rgba(124, 108, 255, 0.12);
+  border-color: var(--ds-color-primitive-blue-300, #A3C7F6);
+  box-shadow: 0 0 0 3px var(--ds-color-focus-ring, rgba(26, 115, 232, 0.3));
   transform: translateY(-1px);
 }

@@ -1,6 +1,7 @@
-/* History panel — right-side session list. Purely ADDITIVE styles: the
-   existing console UI, class names, and structure are untouched. The main
-   console keeps centering inside .console-main exactly as before. */
+/* History — now opened from a TOP "History" button instead of a persistent
+   right-side column. The HistoryPanel component and all its class names are
+   unchanged; it simply renders inside a slide-over drawer. Arena DS token
+   pass applied throughout. */
 
 .console-shell {
   display: flex;
@@ -13,18 +14,111 @@
   min-width: 0;
 }
 
-.history-panel {
-  position: sticky;
+/* ---------- Top History toggle button ---------- */
+.hist-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 40;
+  height: 40px;
+  padding: 0 var(--ds-spacing-component-md, 16px);
+  border-radius: var(--ds-radius-md, 12px);
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
+  background: var(--ds-color-surface-raised, #FFFFFF);
+  color: var(--ds-color-text-secondary, #575A66);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: var(--ds-elevation-sm, 0px 1px 2px rgba(44, 45, 51, 0.08));
+  transition: all var(--ds-motion-duration-fast, 100ms)
+    var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.hist-toggle:hover {
+  border-color: var(--ds-color-border-focus, #1A73E8);
+  background: var(--ds-color-brand-surface, #F3F8FE);
+  color: var(--ds-color-text-link, #1A73E8);
+}
+
+.hist-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 41;
+  background: var(--ds-color-surface-overlay, rgba(44, 45, 51, 0.72));
+  animation: hist-fade-in var(--ds-motion-duration-normal, 200ms)
+    var(--ds-motion-easing-decelerate, cubic-bezier(0, 0, 0.2, 1));
+}
+
+.hist-drawer {
+  position: fixed;
   top: 0;
-  z-index: 1;
-  width: 340px;
-  flex-shrink: 0;
-  height: 100dvh;
+  right: 0;
+  bottom: 0;
+  z-index: 42;
+  width: min(380px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--ds-color-surface-raised, #FFFFFF);
+  box-shadow: var(--ds-elevation-xlg, 0px 8px 32px rgba(44, 45, 51, 0.16));
+  animation: hist-slide-in var(--ds-motion-duration-slow, 300ms)
+    var(--ds-motion-easing-decelerate, cubic-bezier(0, 0, 0.2, 1));
+}
+
+.hist-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ds-radius-sm, 8px);
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
+  background: var(--ds-color-surface-raised, #FFFFFF);
+  color: var(--ds-color-icon-default, #575A66);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--ds-motion-duration-fast, 100ms)
+    var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.hist-close:hover {
+  border-color: var(--ds-color-border-focus, #1A73E8);
+  color: var(--ds-color-text-link, #1A73E8);
+  background: var(--ds-color-brand-surface, #F3F8FE);
+}
+
+@keyframes hist-slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes hist-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- Panel (unchanged class names, now inside the drawer) ---------- */
+.history-panel {
+  width: 100%;
+  height: 100%;
   overflow-y: auto;
   padding: 20px 16px 28px;
-  border-left: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(8px);
+  background: var(--ds-color-surface-raised, #FFFFFF);
 }
 
 .history-panel::-webkit-scrollbar {
@@ -32,7 +126,7 @@
 }
 
 .history-panel::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.14);
+  background: var(--ds-color-primitive-grey-300, #C5C6CC);
   border-radius: var(--ds-radius-full, 9999px);
 }
 
@@ -42,28 +136,29 @@
   justify-content: space-between;
   gap: var(--ds-spacing-component-xs, 8px);
   padding-bottom: 12px;
+  padding-right: 44px;
   margin-bottom: 12px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-bottom: 1px solid var(--ds-color-border-default, #E2E3E5);
 }
 
 .hist-title {
   font-size: 15px;
   font-weight: 600;
-  color: #0F172A;
+  color: var(--ds-color-text-primary, #2C2D33);
 }
 
 .hist-sub {
   font-size: 11.5px;
-  color: rgba(15, 23, 42, 0.50);
+  color: var(--ds-color-text-tertiary, #8A8D99);
   letter-spacing: 0.25px;
 }
 
 .hist-refresh {
   padding: 6px 14px;
   border-radius: var(--ds-radius-pill, 80px);
-  border: 1px solid rgba(124, 108, 255, 0.35);
-  background: rgba(124, 108, 255, 0.08);
-  color: #5b4fd6;
+  border: 1px solid var(--ds-color-primitive-blue-300, #A3C7F6);
+  background: var(--ds-color-brand-surface, #F3F8FE);
+  color: var(--ds-color-text-link, #1A73E8);
   font-size: 12px;
   font-weight: 500;
   font-family: inherit;
@@ -73,8 +168,8 @@
 }
 
 .hist-refresh:hover:not(:disabled) {
-  background: rgba(124, 108, 255, 0.16);
-  color: #4338ca;
+  background: var(--ds-color-primitive-blue-200, #D1E3FA);
+  color: var(--ds-color-text-link-hover, #155CBA);
 }
 
 .hist-refresh:disabled {
@@ -86,9 +181,9 @@
   margin-bottom: 10px;
   padding: 10px 12px;
   border-radius: var(--ds-radius-md, 12px);
-  border: 1px solid rgba(220, 38, 38, 0.30);
-  background: rgba(254, 226, 226, 0.60);
-  color: #b91c1c;
+  border: 1px solid var(--ds-color-status-error-border, #FAA3A3);
+  background: var(--ds-color-status-error-surface, #FFF3F3);
+  color: var(--ds-color-status-error-text, #921010);
   font-size: 12.5px;
   line-height: 1.5;
 }
@@ -97,9 +192,9 @@
   margin-bottom: 10px;
   padding: 10px 12px;
   border-radius: var(--ds-radius-md, 12px);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: #ffffff;
-  color: rgba(15, 23, 42, 0.62);
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
+  background: var(--ds-color-surface-raised, #FFFFFF);
+  color: var(--ds-color-text-secondary, #575A66);
   font-size: 12.5px;
   line-height: 1.5;
 }
@@ -107,8 +202,8 @@
 .hist-empty {
   padding: 14px 12px;
   border-radius: var(--ds-radius-md, 12px);
-  border: 1px dashed rgba(15, 23, 42, 0.14);
-  color: rgba(15, 23, 42, 0.50);
+  border: 1px dashed var(--ds-color-border-strong, #A7AAB2);
+  color: var(--ds-color-text-tertiary, #8A8D99);
   font-size: 12.5px;
   line-height: 1.55;
 }
@@ -123,20 +218,20 @@
 .hist-card {
   padding: 12px;
   border-radius: var(--ds-radius-md, 12px);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
+  background: var(--ds-color-surface-raised, #FFFFFF);
+  box-shadow: var(--ds-elevation-sm, 0px 1px 2px rgba(44, 45, 51, 0.08));
   transition: border-color var(--ds-motion-duration-fast, 100ms)
     var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
 }
 
 .hist-card:hover {
-  border-color: rgba(124, 108, 255, 0.40);
+  border-color: var(--ds-color-primitive-blue-300, #A3C7F6);
 }
 
 .hist-card-open {
-  border-color: rgba(124, 108, 255, 0.60);
-  box-shadow: 0 0 0 3px rgba(124, 108, 255, 0.12);
+  border-color: var(--ds-color-border-focus, #1A73E8);
+  box-shadow: 0 0 0 3px var(--ds-color-focus-ring, rgba(26, 115, 232, 0.3));
 }
 
 .hist-card-head {
@@ -156,15 +251,15 @@
 .hist-time {
   font-size: 12.5px;
   font-weight: 600;
-  color: #0F172A;
+  color: var(--ds-color-text-primary, #2C2D33);
 }
 
 .hist-badge {
   padding: 2px 10px;
   border-radius: var(--ds-radius-pill, 80px);
-  border: 1px solid rgba(124, 108, 255, 0.35);
-  background: rgba(124, 108, 255, 0.08);
-  color: #5b4fd6;
+  border: 1px solid var(--ds-color-primitive-blue-300, #A3C7F6);
+  background: var(--ds-color-brand-surface, #F3F8FE);
+  color: var(--ds-color-text-link, #1A73E8);
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.25px;
@@ -175,7 +270,7 @@
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.55;
-  color: rgba(15, 23, 42, 0.55);
+  color: var(--ds-color-text-tertiary, #8A8D99);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -195,8 +290,8 @@
   gap: var(--ds-spacing-component-xs, 8px);
   padding: 8px 10px;
   border-radius: var(--ds-radius-sm, 8px);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  background: rgba(124, 108, 255, 0.04);
+  border: 1px solid var(--ds-color-border-subtle, #F7F8F9);
+  background: var(--ds-color-brand-surface, #F3F8FE);
   cursor: pointer;
 }
 
@@ -205,14 +300,14 @@
   height: 16px;
   margin-top: 2px;
   flex-shrink: 0;
-  accent-color: #7C6CFF;
+  accent-color: var(--ds-color-interactive-default, #1A73E8);
   cursor: pointer;
 }
 
 .hist-check-done {
   width: 16px;
   flex-shrink: 0;
-  color: #16a34a;
+  color: var(--ds-color-icon-Success, #2FA06A);
   font-size: 13px;
   font-weight: 600;
   text-align: center;
@@ -228,25 +323,25 @@
 .hist-contact-name {
   font-size: 12.5px;
   font-weight: 600;
-  color: #0F172A;
+  color: var(--ds-color-text-primary, #2C2D33);
 }
 
 .hist-contact-line {
   font-size: 11.5px;
-  color: rgba(15, 23, 42, 0.55);
+  color: var(--ds-color-text-secondary, #575A66);
 }
 
 .hist-email {
   font-size: 11.5px;
   font-weight: 500;
-  color: #166534;
+  color: var(--ds-color-status-success-text, #23784F);
   overflow-wrap: anywhere;
 }
 
 .hist-noemail {
   font-size: 11px;
   font-style: italic;
-  color: #b45309;
+  color: var(--ds-color-status-warning-text, #974D29);
 }
 
 .hist-actions {
@@ -258,9 +353,9 @@
 .hist-btn {
   padding: 7px 14px;
   border-radius: var(--ds-radius-pill, 80px);
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: #ffffff;
-  color: rgba(15, 23, 42, 0.62);
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
+  background: var(--ds-color-surface-raised, #FFFFFF);
+  color: var(--ds-color-text-secondary, #575A66);
   font-size: 12px;
   font-weight: 500;
   font-family: inherit;
@@ -270,9 +365,9 @@
 }
 
 .hist-btn:hover:not(:disabled) {
-  border-color: rgba(124, 108, 255, 0.5);
-  background: rgba(124, 108, 255, 0.08);
-  color: #4338ca;
+  border-color: var(--ds-color-primitive-blue-300, #A3C7F6);
+  background: var(--ds-color-brand-surface, #F3F8FE);
+  color: var(--ds-color-text-link-hover, #155CBA);
 }
 
 .hist-btn:disabled {
@@ -282,30 +377,13 @@
 
 .hist-btn-primary {
   border: none;
-  background: linear-gradient(135deg, #7C6CFF, #4DB8FF);
-  color: #ffffff;
-  box-shadow: 0 2px 10px rgba(124, 108, 255, 0.25);
+  background: linear-gradient(135deg, var(--ds-color-primitive-blue-600, #1A73E8), var(--ds-color-primitive-sea-blue-600, #00A7D6));
+  color: var(--ds-color-text-on-brand, #FFFFFF);
+  box-shadow: 0 2px 10px rgba(26, 115, 232, 0.25);
 }
 
 .hist-btn-primary:hover:not(:disabled) {
   filter: brightness(1.06);
-  color: #ffffff;
-  background: linear-gradient(135deg, #7C6CFF, #4DB8FF);
-}
-
-/* Stack the panel under the console on narrower viewports so the existing
-   centered layout is never squeezed. */
-@media (max-width: 1200px) {
-  .console-shell {
-    flex-direction: column;
-  }
-
-  .history-panel {
-    position: static;
-    width: 100%;
-    height: auto;
-    max-height: none;
-    border-left: none;
-    border-top: 1px solid rgba(15, 23, 42, 0.08);
-  }
+  color: var(--ds-color-text-on-brand, #FFFFFF);
+  background: linear-gradient(135deg, var(--ds-color-primitive-blue-600, #1A73E8), var(--ds-color-primitive-sea-blue-600, #00A7D6));
 }

@@ -1,4 +1,4 @@
-/* Prospect Lens chat polish — LIGHT theme pass. Role labels, timestamps,
+/* Prospect Lens chat polish — Arena DS token pass. Role labels, timestamps,
    notice styling, welcome panel, message entrance animation, rich candidate
    cards, and a 375px mobile pass. Colors only — all class names and
    structural rules preserved. */
@@ -32,16 +32,16 @@
   padding: 0 4px;
   font-size: 11px;
   letter-spacing: var(--ds-type-label-letter-spacing, 0.25px);
-  color: rgba(15, 23, 42, 0.45);
+  color: var(--ds-color-text-tertiary, #8A8D99);
 }
 
 .msg-role {
   font-weight: 500;
-  color: rgba(15, 23, 42, 0.60);
+  color: var(--ds-color-text-secondary, #575A66);
 }
 
 .row-user .msg-role {
-  color: #5b4fd6;
+  color: var(--ds-color-text-link, #1A73E8);
 }
 
 .msg-avatar {
@@ -49,26 +49,26 @@
   height: 8px;
   flex-shrink: 0;
   border-radius: var(--ds-radius-full, 9999px);
-  background: #4DB8FF;
-  box-shadow: 0 0 8px rgba(77, 184, 255, 0.45);
+  background: var(--ds-color-primitive-sea-blue-600, #00A7D6);
+  box-shadow: 0 0 8px rgba(0, 167, 214, 0.45);
 }
 
 .row-user .msg-avatar {
-  background: #7C6CFF;
-  box-shadow: 0 0 8px rgba(124, 108, 255, 0.45);
+  background: var(--ds-color-primitive-blue-600, #1A73E8);
+  box-shadow: 0 0 8px rgba(26, 115, 232, 0.45);
 }
 
 .msg-time {
-  color: rgba(15, 23, 42, 0.40);
+  color: var(--ds-color-text-tertiary, #8A8D99);
   font-size: 11px;
 }
 
 .msg-notice-tag {
   padding: 1px 8px;
   border-radius: var(--ds-radius-pill, 80px);
-  border: 1px solid rgba(180, 83, 9, 0.35);
-  background: rgba(251, 191, 36, 0.18);
-  color: #92400e;
+  border: 1px solid var(--ds-color-status-warning-border, #FDCDB5);
+  background: var(--ds-color-status-warning-surface, #FFF9F5);
+  color: var(--ds-color-status-warning-text, #974D29);
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.25px;
@@ -101,26 +101,26 @@
 /* ---------- Notice (fallback / didn't-fully-complete) replies ---------- */
 .bubble-notice {
   border-left: 3px solid var(--ds-color-status-warning-default, #FB8145);
-  border-color: rgba(245, 158, 11, 0.40);
-  background: rgba(255, 247, 237, 0.92);
+  border-color: var(--ds-color-status-warning-border, #FDCDB5);
+  background: var(--ds-color-status-warning-surface, #FFF9F5);
 }
 
 .bubble-notice .md-para {
-  color: #713f12;
+  color: var(--ds-color-status-warning-text, #974D29);
 }
 
 /* ---------- Welcome / getting-started panel ---------- */
 .bubble-welcome {
   padding: 22px 24px;
-  border: 1px solid rgba(124, 108, 255, 0.30);
-  background: linear-gradient(160deg, rgba(124, 108, 255, 0.08), rgba(77, 184, 255, 0.06));
-  box-shadow: 0 8px 28px rgba(124, 108, 255, 0.10);
+  border: 1px solid var(--ds-color-primitive-blue-200, #D1E3FA);
+  background: linear-gradient(160deg, rgba(26, 115, 232, 0.06), rgba(0, 167, 214, 0.04));
+  box-shadow: 0 8px 28px rgba(26, 115, 232, 0.08);
   border-bottom-left-radius: var(--ds-radius-lg, 16px);
 }
 
 .bubble-welcome .md-heading,
 .bubble-welcome strong {
-  color: #0F172A;
+  color: var(--ds-color-text-primary, #2C2D33);
 }
 
 /* ---------- Tables stay scrollable, never squeezed ---------- */
@@ -146,17 +146,17 @@
   text-align: left;
   padding: 14px 16px;
   border-radius: var(--ds-radius-lg, 16px);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-  color: #0F172A;
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
+  background: var(--ds-color-surface-raised, #FFFFFF);
+  box-shadow: var(--ds-elevation-sm, 0px 1px 2px rgba(44, 45, 51, 0.08));
+  color: var(--ds-color-text-primary, #2C2D33);
   transition: all var(--ds-motion-duration-fast, 100ms)
     var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
 }
 
 .cand-card:hover {
-  border-color: rgba(124, 108, 255, 0.45);
-  box-shadow: 0 4px 18px rgba(124, 108, 255, 0.14);
+  border-color: var(--ds-color-primitive-blue-300, #A3C7F6);
+  box-shadow: 0 4px 18px rgba(26, 115, 232, 0.14);
   transform: translateY(-1px);
 }
 
@@ -165,8 +165,8 @@
   height: 28px;
   flex-shrink: 0;
   border-radius: var(--ds-radius-sm, 8px);
-  background: linear-gradient(135deg, #7C6CFF, #4DB8FF);
-  color: #fff;
+  background: linear-gradient(135deg, var(--ds-color-primitive-blue-600, #1A73E8), var(--ds-color-primitive-sea-blue-600, #00A7D6));
+  color: var(--ds-color-text-on-brand, #FFFFFF);
   font-size: 13px;
   font-weight: 600;
   display: flex;
@@ -182,9 +182,9 @@
   flex-shrink: 0;
   border-radius: var(--ds-radius-full, 9999px);
   object-fit: cover;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(15, 23, 42, 0.04);
-  box-shadow: 0 0 0 3px rgba(124, 108, 255, 0.18), 0 0 14px rgba(124, 108, 255, 0.14);
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
+  background: var(--ds-color-surface-subtle, #F7F8F9);
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.18), 0 0 14px rgba(26, 115, 232, 0.14);
 }
 
 .cand-avatar-fallback {
@@ -194,8 +194,8 @@
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.5px;
-  color: #ffffff;
-  background: linear-gradient(135deg, #7C6CFF, #4DB8FF);
+  color: var(--ds-color-text-on-brand, #FFFFFF);
+  background: linear-gradient(135deg, var(--ds-color-primitive-blue-600, #1A73E8), var(--ds-color-primitive-sea-blue-600, #00A7D6));
 }
 
 .cand-body {
@@ -209,17 +209,17 @@
 .cand-name {
   font-size: 14.5px;
   font-weight: 600;
-  color: #0F172A;
+  color: var(--ds-color-text-primary, #2C2D33);
 }
 
 .cand-line {
   font-size: 13px;
-  color: rgba(15, 23, 42, 0.62);
+  color: var(--ds-color-text-secondary, #575A66);
 }
 
 .cand-loc {
   font-size: 12px;
-  color: rgba(15, 23, 42, 0.40);
+  color: var(--ds-color-text-tertiary, #8A8D99);
 }
 
 .cand-badges {
@@ -235,25 +235,25 @@
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.25px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  color: rgba(15, 23, 42, 0.60);
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
+  color: var(--ds-color-text-secondary, #575A66);
 }
 
 .cand-badge-seniority {
-  border-color: rgba(179, 100, 215, 0.40);
-  background: rgba(179, 100, 215, 0.10);
-  color: #7e3ba3;
+  border-color: var(--ds-color-graphic-purple-light, #E1C1EF);
+  background: var(--ds-color-graphic-purple-surface, #FBF7FD);
+  color: var(--ds-color-primitive-purple-700, #8F50AC);
 }
 
 .cand-badge-confidence {
-  border-color: rgba(22, 163, 74, 0.35);
-  background: rgba(22, 163, 74, 0.10);
-  color: #166534;
+  border-color: var(--ds-color-status-success-border, #B1E9CE);
+  background: var(--ds-color-status-success-surface, #F5FCF9);
+  color: var(--ds-color-status-success-text, #23784F);
 }
 
 .cand-summary {
   font-size: 12px;
-  color: rgba(15, 23, 42, 0.50);
+  color: var(--ds-color-text-tertiary, #8A8D99);
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -275,13 +275,13 @@
   align-items: center;
   padding: 6px 14px;
   border-radius: var(--ds-radius-pill, 80px);
-  background: linear-gradient(135deg, #7C6CFF, #4DB8FF);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--ds-color-primitive-blue-600, #1A73E8), var(--ds-color-primitive-sea-blue-600, #00A7D6));
+  color: var(--ds-color-text-on-brand, #FFFFFF);
   font-size: 12px;
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
-  box-shadow: 0 2px 10px rgba(124, 108, 255, 0.25);
+  box-shadow: 0 2px 10px rgba(26, 115, 232, 0.25);
   transition: all var(--ds-motion-duration-fast, 100ms)
     var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
 }
@@ -294,9 +294,9 @@
 .cand-select {
   padding: 6px 14px;
   border-radius: var(--ds-radius-pill, 80px);
-  border: 1px solid rgba(77, 184, 255, 0.50);
-  background: rgba(77, 184, 255, 0.10);
-  color: #0369a1;
+  border: 1px solid var(--ds-color-primitive-sea-blue-300, #99DCEF);
+  background: var(--ds-color-primitive-sea-blue-50, #F2FBFD);
+  color: var(--ds-color-primitive-sea-blue-700, #0086AB);
   font-size: 12px;
   font-weight: 500;
   font-family: inherit;
@@ -307,8 +307,8 @@
 }
 
 .cand-select:hover:not(:disabled) {
-  background: rgba(77, 184, 255, 0.22);
-  color: #075985;
+  background: var(--ds-color-primitive-sea-blue-200, #CCEDF7);
+  color: var(--ds-color-primitive-sea-blue-800, #006480);
 }
 
 .cand-select:disabled {
@@ -319,7 +319,7 @@
 .cand-hint {
   margin: 2px 0 0;
   font-size: 11.5px;
-  color: rgba(15, 23, 42, 0.45);
+  color: var(--ds-color-text-tertiary, #8A8D99);
   letter-spacing: 0.25px;
 }
 
@@ -334,9 +334,9 @@
 }
 
 .cand-card-selected {
-  border-color: rgba(124, 108, 255, 0.85);
-  background: rgba(124, 108, 255, 0.06);
-  box-shadow: 0 0 0 3px rgba(124, 108, 255, 0.18), 0 4px 20px rgba(124, 108, 255, 0.16);
+  border-color: var(--ds-color-border-focus, #1A73E8);
+  background: var(--ds-color-brand-surface, #F3F8FE);
+  box-shadow: 0 0 0 3px var(--ds-color-focus-ring, rgba(26, 115, 232, 0.3)), 0 4px 20px rgba(26, 115, 232, 0.16);
 }
 
 .cand-card-enriching {
@@ -354,12 +354,12 @@
 .cand-checkbox {
   width: 18px;
   height: 18px;
-  accent-color: #7C6CFF;
+  accent-color: var(--ds-color-interactive-default, #1A73E8);
   cursor: pointer;
 }
 
 .cand-check-done {
-  color: #16a34a;
+  color: var(--ds-color-icon-Success, #2FA06A);
   font-size: 15px;
   font-weight: 600;
 }
@@ -374,7 +374,7 @@
 
 .cand-count {
   font-size: 12px;
-  color: rgba(15, 23, 42, 0.55);
+  color: var(--ds-color-text-tertiary, #8A8D99);
   letter-spacing: 0.25px;
 }
 
@@ -386,9 +386,9 @@
 .cand-tool-btn {
   padding: 5px 12px;
   border-radius: var(--ds-radius-pill, 80px);
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: #ffffff;
-  color: rgba(15, 23, 42, 0.62);
+  border: 1px solid var(--ds-color-border-default, #E2E3E5);
+  background: var(--ds-color-surface-raised, #FFFFFF);
+  color: var(--ds-color-text-secondary, #575A66);
   font-size: 12px;
   font-weight: 500;
   font-family: inherit;
@@ -398,9 +398,9 @@
 }
 
 .cand-tool-btn:hover:not(:disabled) {
-  border-color: rgba(124, 108, 255, 0.5);
-  background: rgba(124, 108, 255, 0.08);
-  color: #4338ca;
+  border-color: var(--ds-color-primitive-blue-300, #A3C7F6);
+  background: var(--ds-color-brand-surface, #F3F8FE);
+  color: var(--ds-color-text-link-hover, #155CBA);
 }
 
 .cand-tool-btn:disabled {
@@ -421,7 +421,7 @@
   display: flex;
   justify-content: flex-end;
   padding: 8px 0 2px;
-  background: linear-gradient(180deg, transparent, rgba(247, 248, 251, 0.92));
+  background: linear-gradient(180deg, transparent, rgba(247, 248, 249, 0.92));
 }
 
 .cand-enrich-btn {
@@ -429,13 +429,13 @@
   padding: 0 24px;
   border: none;
   border-radius: var(--ds-radius-pill, 80px);
-  background: linear-gradient(135deg, #7C6CFF, #4DB8FF);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--ds-color-primitive-blue-600, #1A73E8), var(--ds-color-primitive-sea-blue-600, #00A7D6));
+  color: var(--ds-color-text-on-brand, #FFFFFF);
   font-size: 14px;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: 0 4px 18px rgba(124, 108, 255, 0.30);
+  box-shadow: 0 4px 18px rgba(26, 115, 232, 0.30);
   transition: all var(--ds-motion-duration-fast, 100ms)
     var(--ds-motion-easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
 }
@@ -443,7 +443,7 @@
 .cand-enrich-btn:hover:not(:disabled) {
   filter: brightness(1.06);
   transform: translateY(-1px);
-  box-shadow: 0 6px 26px rgba(124, 108, 255, 0.40);
+  box-shadow: 0 6px 26px rgba(26, 115, 232, 0.40);
 }
 
 .cand-enrich-btn:disabled {
@@ -463,8 +463,8 @@
   height: 18px;
   flex-shrink: 0;
   border-radius: var(--ds-radius-full, 9999px);
-  border: 2px solid rgba(15, 23, 42, 0.15);
-  border-top-color: #7C6CFF;
+  border: 2px solid var(--ds-color-primitive-grey-200, #E2E3E5);
+  border-top-color: var(--ds-color-primitive-blue-600, #1A73E8);
   animation: cand-spin 0.8s linear infinite;
 }
 
@@ -479,16 +479,16 @@
 .cand-email-text {
   font-size: 12.5px;
   font-weight: 500;
-  color: #166534;
+  color: var(--ds-color-status-success-text, #23784F);
   overflow-wrap: anywhere;
 }
 
 .cand-copy {
   padding: 3px 10px;
   border-radius: var(--ds-radius-pill, 80px);
-  border: 1px solid rgba(22, 163, 74, 0.40);
-  background: rgba(22, 163, 74, 0.10);
-  color: #166534;
+  border: 1px solid var(--ds-color-status-success-border, #B1E9CE);
+  background: var(--ds-color-status-success-surface, #F5FCF9);
+  color: var(--ds-color-status-success-text, #23784F);
   font-size: 11px;
   font-weight: 500;
   font-family: inherit;
@@ -499,15 +499,15 @@
 }
 
 .cand-copy:hover {
-  background: rgba(22, 163, 74, 0.20);
-  color: #14532d;
+  background: var(--ds-color-primitive-success-200, #D8F4E6);
+  color: var(--ds-color-primitive-success-900, #185035);
 }
 
 .cand-noemail {
   margin-top: 4px;
   font-size: 12px;
   font-style: italic;
-  color: #b45309;
+  color: var(--ds-color-status-warning-text, #974D29);
 }
 
 /* ---------- Mobile pass (~375px) ---------- */

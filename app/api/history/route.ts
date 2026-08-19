@@ -85,121 +85,161 @@ function toHistoryContact(rec: unknown, index: number): ProspectContact | null {
   };
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    // The session email comes ONLY from the Arena cookie set by middleware.
-    const email = request.cookies.get(ARENA_EMAIL_COOKIE_NAME)?.value?.trim() ?? '';
-    if (!email) {
-      return NextResponse.json(
-        {
-          sessions: [],
-          message: 'No session email found — reload the page inside Arena.',
-          error: 'no_email',
-        },
-        { status: 401 },
-      );
-    }
+/** Coerces a value that may be an array OR a JSON-string-encoded array. */
+function toArrayMaybeJson(value: unknown): unknown[] {
+  let v: unknown = value;
+  if (typeof v === 'string') v = parseJsonLoose(v);
+  return Array.isArray(v) ? v : [];
+}
 
-    const { key } = getProspectLensConfig();
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), UPSTREAM_ABORT_MS);
-    const started = Date.now();
-
-    try {
-      const res = await fetch(historyUrl(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': key,
-        },
-        body: JSON.stringify({ email, stream: false, selectedOutputs: ['table1.rows'] }),
-        signal: controller.signal,
-        cache: 'no-store',
-      });
-
-      const raw = await res.text();
-      console.log('PL history timing', { ms: Date.now() - started, status: res.status });
-      console.log('PL history payload', res.status, raw.slice(0, 1500));
-
-      if (!res.ok) {
-        return NextResponse.json(
-          {
-            sessions: [],
-            message: `The history service returned HTTP ${res.status}. Please try again in a moment.`,
-            error: 'upstream_error',
-          },
-          { status: 502 },
-        );
-      }
-
-      const data = parseJsonLoose(raw);
-      const output = isRecord(data) ? data['output'] : undefined;
-      const rowsRaw = isRecord(output) ? output['rows'] : undefined;
-      const rows = Array.isArray(rowsRaw) ? rowsRaw : [];
-
-      const sessions: HistorySession[] = [];
-      for (const row of rows) {
-        if (!isRecord(row)) continue;
-        const dRaw = row['data'];
-        const d: Record<string, unknown> = isRecord(dRaw) ? dRaw : {};
-        const conversationId = asStr(d['conversation_id']) || asStr(d['conversationId']);
-
-        // candidates_json is a JSON string (occasionally already an array).
-        let list: unknown[] = [];
-        const candidatesRaw = d['candidates_json'];
-        if (typeof candidatesRaw === 'string') {
-          const parsed = parseJsonLoose(candidatesRaw);
-          if (Array.isArray(parsed)) list = parsed;
-        } else if (Array.isArray(candidatesRaw)) {
-          list = candidatesRaw;
+/**
+ * Walks ANY wrapper shape (output nesting, table1.rows keying, JSON embedded
+ * in strings) and returns the FIRST rows[] array found — each entry being a
+ * row object with an id + data payload.
+ */
+function extractRows(payload: unknown): Record<string, unknown>[] {
+  if (!payload || typeof payload !== 'object') return [];
+  const seen = new Set<object>();
+  const stack: unknown[] = [payload];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node || typeof node !== 'object' || seen.has(node)) continue;
+    seen.add(node);
+    if (!Array.isArray(node)) {
+      const rec = node as Record<string, unknown>;
+      for (const key of ['rows', 'table1.rows'] as const) {
+        const rows = toArrayMaybeJson(rec[key]);
+        if (rows.length > 0 && rows.every((r) => isRecord(r))) {
+          return rows.filter(isRecord);
         }
-        const contacts = list
-          .map((c, i) => toHistoryContact(c, i))
-          .filter((c): c is ProspectContact => c !== null);
-
-        sessions.push({
-          rowId: asStr(row['id']) || conversationId || `row-${sessions.length + 1}`,
-          conversationId,
-          email: asStr(d['email']),
-          message: asStr(d['message']),
-          updatedAt:
-            asStr(d['updated_at']) || asStr(d['last_updated']) || asStr(row['updatedAt']),
-          contacts,
-        });
       }
+    }
+    for (const v of Object.values(node)) {
+      if (v && typeof v === 'object') {
+        stack.push(v);
+      } else if (typeof v === 'string') {
+        const t = v.trim();
+        if ((t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))) {
+          const parsed = parseJsonLoose(t);
+          if (parsed && typeof parsed === 'object') stack.push(parsed);
+        }
+      }
+    }
+  }
+  return [];
+}
 
-      // Newest first.
-      sessions.sort((a, b) => {
-        const ta = new Date(a.updatedAt).getTime();
-        const tb = new Date(b.updatedAt).getTime();
-        return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
-      });
+/** Maps one history table row onto the HistorySession shape. */
+function toSession(row: Record<string, unknown>, index: number): HistorySession | null {
+  const dataRaw = row['data'];
+  const data: Record<string, unknown> = isRecord(dataRaw)
+    ? dataRaw
+    : typeof dataRaw === 'string' && isRecord(parseJsonLoose(dataRaw))
+      ? (parseJsonLoose(dataRaw) as Record<string, unknown>)
+      : {};
+  const rowId = asStr(row['id']) || asStr(data['id']) || `row-${index + 1}`;
+  const conversationId =
+    asStr(data['conversation_id']) || asStr(data['conversationId']) || asStr(row['conversation_id']);
+  const email = asStr(data['email']);
+  const message = asStr(data['message']);
+  const updatedAt =
+    asStr(data['updated_at']) ||
+    asStr(data['last_updated']) ||
+    asStr(row['updatedAt']) ||
+    asStr(row['updated_at']);
+  const candidatesRaw = toArrayMaybeJson(data['candidates_json']);
+  const contacts: ProspectContact[] = [];
+  candidatesRaw.forEach((c, i) => {
+    const contact = toHistoryContact(c, i);
+    if (contact) contacts.push(contact);
+  });
+  if (!conversationId && contacts.length === 0 && !message) return null;
+  return { rowId, conversationId, email, message, updatedAt, contacts };
+}
 
-      return NextResponse.json({ sessions, message: '' });
-    } catch (err) {
-      const aborted = controller.signal.aborted;
-      console.error('PL history fetch failed', {
-        ms: Date.now() - started,
-        abortedByUs: aborted,
-        error: err instanceof Error ? err.message : String(err),
-      });
+export async function GET(request: NextRequest) {
+  // Session email from the Arena cookie (set by middleware) — the history
+  // workflow keys its rows on it. Never taken from the client body.
+  const emailId = request.cookies.get(ARENA_EMAIL_COOKIE_NAME)?.value?.trim() ?? '';
+  if (!emailId) {
+    return NextResponse.json(
+      { sessions: [], message: '', error: 'Missing session email.' },
+      { status: 401 },
+    );
+  }
+
+  const { key } = getProspectLensConfig();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPSTREAM_ABORT_MS);
+  const started = Date.now();
+
+  try {
+    const res = await fetch(historyUrl(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': key,
+      },
+      body: JSON.stringify({
+        email: emailId,
+        stream: false,
+        selectedOutputs: ['table1.rows'],
+      }),
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+
+    const raw = await res.text();
+    console.log('PL history timing', { ms: Date.now() - started, status: res.status });
+
+    if (!res.ok) {
       return NextResponse.json(
         {
           sessions: [],
-          message: aborted
-            ? 'Loading history took too long and was stopped. Please try again.'
-            : 'Could not reach the history service (network error). Please try again in a moment.',
-          error: 'upstream_unreachable',
+          message: `History service error (${res.status}).`,
+          error: `history_upstream_${res.status}`,
         },
         { status: 502 },
       );
-    } finally {
-      clearTimeout(timeout);
     }
-  } catch {
+
+    const data = parseJsonLoose(raw) ?? {};
+    const rows = extractRows(data);
+
+    const sessions: HistorySession[] = [];
+    rows.forEach((row, i) => {
+      const session = toSession(row, i);
+      if (session) sessions.push(session);
+    });
+
+    // Newest first — invalid/missing timestamps sink to the bottom.
+    sessions.sort((a, b) => {
+      const ta = new Date(a.updatedAt).getTime();
+      const tb = new Date(b.updatedAt).getTime();
+      const va = Number.isNaN(ta) ? 0 : ta;
+      const vb = Number.isNaN(tb) ? 0 : tb;
+      return vb - va;
+    });
+
+    return NextResponse.json({ sessions, message: '' });
+  } catch (err) {
+    const aborted = controller.signal.aborted;
+    console.error('PL history fetch failed', {
+      ms: Date.now() - started,
+      abortedByUs: aborted,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json(
-      { sessions: [], message: 'History failed unexpectedly. Please try again.', error: 'unknown' },
-      { status: 500 },
+      {
+        sessions: [],
+        message: '',
+        error: aborted
+          ? 'The history request timed out. Please try again.'
+          : 'Could not reach the history service. Please try again in a moment.',
+      },
+      { status: 502 },
     );
+  } finally {
+    clearTimeout(timeout);
   }
 }

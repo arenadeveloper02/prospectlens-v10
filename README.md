@@ -1,13 +1,13 @@
 # prospectlens-v10
 
-Prospect Lens Console with a right-side History panel: past search sessions loaded from the chat-history workflow keyed by the Arena session email, with the same enrich and CSV-export functionality. All workflow calls now include the session email.
+Prospect Lens console restyled to the Arena Design System (brand blue #1A73E8, grey text hierarchy, white surfaces, DS tokens) with the History panel moved from a persistent right-side column to a top 'History' button that opens a slide-over drawer. Files changed: app/globals.css, app/chat-polish.css, app/console-polish.css, app/history-polish.css (color-only Arena DS token pass + new drawer/toggle styles), app/layout.tsx (render HistoryToggle instead of the fixed right-side HistoryPanel), components/HistoryToggle.tsx (new client component wrapping the existing HistoryPanel in a button-triggered drawer). prisma/schema.prisma is not present in the repository file index, so no schema file was touched.
 
 ## Features
 
-- Right-side History panel listing past search sessions from the chat-history workflow
-- History sessions support Enrich (via /api/enrich with the stored conversation_id) and Export CSV
-- Session email from the Arena cookie is included in every PROSPECT_LENS_URL workflow request
-- Existing console UI, chat UI, identify/enrich flows unchanged
+- Arena DS token-based light theme (brand blue #1A73E8, grey hierarchy, white surfaces, Poppins)
+- History accessible via a top History button that opens a slide-over drawer
+- Identify leadership contacts and enrich verified emails
+- Session history with enrich + CSV export
 
 ## Tech Stack
 
