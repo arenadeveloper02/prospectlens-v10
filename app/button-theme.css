@@ -1,0 +1,125 @@
+/* Button theme override — soft blue / purple SaaS pass.
+   This file is imported LAST in app/layout.tsx so these rules win the
+   cascade and restyle the existing buttons WITHOUT editing any of the
+   original stylesheets, class names, or component markup.
+
+   Hierarchy:
+     Primary CTA        → purple → blue → cyan gradient
+     Secondary actions  → translucent white
+     Suggestion chips   → soft neutral pills */
+
+/* ---------- Suggestion chips (C-Level of, CEO of, quick phrases, picks) ---------- */
+.chip,
+.qi-chip,
+.pick-btn {
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  color: #475569;
+}
+
+.chip:hover:not(:disabled),
+.qi-chip:hover,
+.pick-btn:hover {
+  background: rgba(238, 242, 255, 0.92);
+  border-color: rgba(99, 102, 241, 0.20);
+  color: #5b63d9;
+}
+
+/* ---------- Secondary actions (History, Refresh, Close, toolbar, select) ---------- */
+.hist-toggle,
+.hist-btn:not(.hist-btn-primary),
+.hist-refresh,
+.hist-close,
+.cand-tool-btn,
+.cand-select {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.20);
+  color: #475569;
+  box-shadow:
+    0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+.hist-toggle:hover,
+.hist-btn:not(.hist-btn-primary):hover:not(:disabled),
+.hist-refresh:hover:not(:disabled),
+.hist-close:hover,
+.cand-tool-btn:hover:not(:disabled),
+.cand-select:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(99, 102, 241, 0.22);
+  color: #5b6ef5;
+}
+
+/* ---------- Primary CTAs (Search, Enrich selected, primary history CTA,
+   LinkedIn pill, copy CTAs) — soft premium purple→blue→cyan gradient ---------- */
+.send-btn,
+.cand-enrich-btn,
+.hist-btn-primary,
+.md-btn-primary,
+.cand-linkedin {
+  background: linear-gradient(
+    135deg,
+    #6d63ff 0%,
+    #4f8cff 50%,
+    #38bdf8 100%
+  );
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  border-radius: 16px;
+  box-shadow:
+    0 8px 24px rgba(79, 124, 255, 0.18),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+}
+
+/* Hover — gentle lift, slightly deeper glow, barely brighter (never harsh). */
+.send-btn:hover:not(:disabled),
+.cand-enrich-btn:hover:not(:disabled),
+.hist-btn-primary:hover:not(:disabled),
+.md-btn-primary:hover,
+.cand-linkedin:hover {
+  background: linear-gradient(
+    135deg,
+    #7568ff 0%,
+    #5687ff 52%,
+    #43b7f5 100%
+  );
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow:
+    0 12px 30px rgba(91, 124, 255, 0.24),
+    0 3px 8px rgba(15, 23, 42, 0.06);
+  filter: brightness(1.02);
+}
+
+/* Active — settle back down. */
+.send-btn:active:not(:disabled),
+.cand-enrich-btn:active:not(:disabled),
+.hist-btn-primary:active:not(:disabled),
+.md-btn-primary:active,
+.cand-linkedin:active {
+  transform: translateY(0);
+  box-shadow:
+    0 5px 14px rgba(91, 124, 255, 0.18);
+}
+
+/* Disabled / loading (e.g. "Searching…", "Enriching…") — SAME gradient
+   family, just softened, so loading still belongs to the primary system. */
+.send-btn:disabled,
+.cand-enrich-btn:disabled,
+.hist-btn-primary:disabled {
+  background: linear-gradient(
+    135deg,
+    #6d63ff 0%,
+    #4f8cff 50%,
+    #38bdf8 100%
+  );
+  color: #ffffff;
+  opacity: 0.72;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+}

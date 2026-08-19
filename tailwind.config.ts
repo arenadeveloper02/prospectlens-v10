@@ -4,14 +4,9 @@ const config: Config = {
   content: [
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
-    './lib/**/*.{ts,tsx}',
   ],
   theme: {
-    extend: {
-      fontFamily: {
-        sans: ['Poppins', 'system-ui', 'sans-serif'],
-      },
-    },
+    extend: {},
   },
   plugins: [],
 };

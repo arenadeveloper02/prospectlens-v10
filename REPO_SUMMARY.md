@@ -1,21 +1,22 @@
-# Repository Summary: prospectlens-v10
+# Repository Summary: Prospect Lens Console
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-19T07:18:29.123Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-19T07:38:16.959Z.
 
 ## Overview
 
-A conversational console for finding, selecting, and enriching professional contacts, with a top History button opening past search sessions in a slide-over drawer.
+A conversational console for finding, selecting, and enriching professional contacts, with a soft blue/purple SaaS button theme.
 
 **Repository:** `prospectlens-v10`  
-**File count:** 41
+**File count:** 39
 
 ## Features
 
-- Identify leadership contacts via the Prospect Lens workflow
-- Selection-driven enrichment with verified emails (Apollo-only)
-- CSV export of contacts
-- History button at the top opening a slide-over drawer of past sessions
-- Arena DS token-based light theme with Poppins
+- Leadership contact search via Arena workflow
+- Selective contact enrichment with verified emails
+- History drawer with per-session enrich and CSV export
+- CSV export of results
+- Soft purple→blue→cyan gradient primary buttons with translucent secondary actions
+- Arena email gate with access-denied page
 
 ## Tech Stack
 
@@ -44,6 +45,7 @@ A conversational console for finding, selecting, and enriching professional cont
 
 - `app/access-denied/page.tsx`
 - `app/arena-ds-tokens.css`
+- `app/button-theme.css`
 - `app/chat-polish.css`
 - `app/console-polish.css`
 - `app/globals.css`
@@ -51,12 +53,6 @@ A conversational console for finding, selecting, and enriching professional cont
 - `app/layout.tsx`
 - `app/not-found.tsx`
 - `app/page.tsx`
-
-### API routes
-
-- `app/api/enrich/route.ts`
-- `app/api/health/route.ts`
-- `app/api/history/route.ts`
 
 ### Components
 
@@ -105,10 +101,8 @@ A conversational console for finding, selecting, and enriching professional cont
 - `README.md`
 - `REPO_SUMMARY.md`
 - `app/access-denied/page.tsx`
-- `app/api/enrich/route.ts`
-- `app/api/health/route.ts`
-- `app/api/history/route.ts`
 - `app/arena-ds-tokens.css`
+- `app/button-theme.css`
 - `app/chat-polish.css`
 - `app/console-polish.css`
 - `app/globals.css`
@@ -145,77 +139,162 @@ A conversational console for finding, selecting, and enriching professional cont
 
 ## Latest Change
 
-- **Updated at:** 2026-08-19T07:18:29.123Z
+- **Updated at:** 2026-08-19T07:38:16.959Z
 - **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 Changes to implement:
 
 
 
 1) change the CSS 
-## Arena Design Guidelines (combined DS tokens — follow exactly)
+Also update all primary and secondary buttons so they visually match the new soft blue / purple SaaS theme.
+The current solid bright-blue button style looks too flat and disconnected from the new background.
+Primary buttons
+Change buttons such as:
+	•	View analysis history
+	•	Search
+	•	Analyze
+	•	Continue
+	•	Run analysis
+from a flat solid blue into a softer premium gradient.
+Use a direction similar to:
+background: linear-gradient(
+  135deg,
+  #6d63ff 0%,
+  #4f8cff 50%,
+  #38bdf8 100%
+);
+The gradient should feel subtle and premium rather than overly saturated.
+Add:
+color: #ffffff;
 
-Source: Arena Design System. Default scale mode = **MD**. Prefer CSS vars from \`app/arena-ds-tokens.css\` (\`--ds-*\`) when present; otherwise use the values below. Bind UI to **semantic** tokens — never invent hex/spacing outside this system. Font: **Poppins** via \`next/font/google\` (weights 400/500/600/700).
+border: 1px solid rgba(255,255,255,0.20);
 
-### Color primitives (stops 900→50; stop 600 = base)
-- white \`#FFFFFF\` · black \`#000000\` · transparent
-- Grey: 900 \`#2C2D33\` … 600 \`#6D717F\` … 50 \`#F7F8F9\`
-- Blue (Primary): 900 \`#0A2E5D\` · **600 \`#1A73E8\`** · 50 \`#F3F8FE\`
-- Pink: 600 \`#F8528F\` · Purple: 600 \`#B364D7\` · Sea Blue: 600 \`#00A7D6\` · Yellow: 600 \`#DFC612\` · Green: 600 \`#3BC884\`
-- Status Success: 600 \`#3BC884\` · Warning: 600 \`#FB8145\` · Error: 600 \`#F31A1A\`
+box-shadow:
+  0 8px 24px rgba(79,124,255,0.18),
+  0 2px 6px rgba(15,23,42,0.06);
 
-### Semantic color (always use these roles)
-- Brand: default=blue/600, hover=blue/700, pressed=blue/800, surface=blue/50
-- Text: primary=grey/900, secondary=grey/700, tertiary=grey/500, disabled=grey/300, inverse/on-brand=white, link=blue/600, link-hover=blue/700, placeholder=grey/400, Success=success/700, Info=blue/700, Warning=warning/700, Error=error/700
-- Icon: default=grey/700, subtle=grey/500, brand=blue/600, disabled=grey/300, Success=green/700, Info=blue/700, Warning=warning/700, Error=error/700
-- Surface: page/raised=white, subtle=grey/50, inverse=grey/900, overlay=grey/900@72%
-- Border: default=grey/200, strong=grey/400, subtle=grey/50, focus=blue/600, error=error/600, disabled=grey/300
-- Focus ring: blue/600@30%
-- Interactive: default=blue/600, hover=blue/700, pressed=blue/800, disabled=grey/300, selected=blue/50, on-interactive=white, destructive=error/600
-- Status success/warning/error/info: default=*-600, surface=*-50, text=*-800, border=*-300 (info uses blue)
-- Graphic palettes: pink/purple/sea-blue/yellow/green → default=*-600, light=*-300, surface=*-50
+border-radius: 16px;
+Example: "View analysis history"
+The current button:
+View analysis history
+should become visually lighter and more refined.
+Desired appearance:
+	•	purple-blue gradient
+	•	white text
+	•	softer corners
+	•	subtle glow/shadow
+	•	no harsh flat blue fill
+	•	smooth hover animation
+Example:
+.analysis-history-button {
+  background: linear-gradient(
+    135deg,
+    #7568ff 0%,
+    #5687ff 52%,
+    #43b7f5 100%
+  );
 
-### Typography (MD default · family Poppins)
-- heading: SemiBold 32px / 40px lh
-- body: Regular 16px / 24px lh
-- label: Medium 12px / 16px lh · letter-spacing 0.25px
-- caption: Regular 12px / 16px lh · letter-spacing 0.4px
-- Scale modes XSM→XLG: heading 20→48px, body 12→20px. Primitive sizes: heading display 48 / xlg 40 / lg 32 / md 24 / sm 20 / xsm 16; body xlg 20 … xsm 12.
+  color: white;
 
-### Spacing & radius (MD)
-- Component spacing: 2xs 4 · xs 8 · sm 12 · md 16 · lg 24 · xl 32
-- Layout spacing: sm 24 · md 32 · lg 48 · xl 64 · 2xl 80 · 3xl 96 · 4xl 128
-- Radius: none 0 · xs 4 · sm 8 · md 12 · lg 16 · xl 28 · pill 80 · full 9999
+  border: 1px solid rgba(255,255,255,0.22);
 
-### Component scale (MD default for buttons/inputs/chips)
-- height 40 · padding-x 16 · padding-y 8 · gap 8 · icon 20 · font 16/24 Medium · border 1 · radius 12 · elevation card shadow
-- Preview: XSM 24px · SM 32px · MD 40px · LG 48px · XLG 56px
+  border-radius: 16px;
 
-### Elevation (grey/900 based)
-- XSM none · SM \`0 1px 2px rgba(44,45,51,.08)\` · MD \`0 2px 8px rgba(44,45,51,.10)\` · LG \`0 4px 16px rgba(44,45,51,.12)\` · XLG \`0 8px 32px rgba(44,45,51,.16)\`
+  box-shadow:
+    0 8px 24px rgba(91,124,255,0.18),
+    0 2px 6px rgba(15,23,42,0.05);
 
-### Motion
-- Duration: instant 0 · fast 100ms · normal 200ms · slow 300ms · slower 500ms
-- Easing: standard \`cubic-bezier(0.4,0,0.2,1)\` · decelerate \`(0,0,0.2,1)\` · accelerate \`(0.4,0,1,1)\` · sharp \`(0.4,0,0.6,1)\`
-- Recipes: hover=fast+standard · dropdown=normal+decelerate · modal enter=slow+decelerate · modal exit=normal+accelerate
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+}
+Hover state
+On hover:
+transform: translateY(-1px);
 
-### Opacity
-- disabled 0.38 · medium 0.60 · overlay 0.72 · full 1.0
+box-shadow:
+  0 12px 30px rgba(91,124,255,0.24),
+  0 3px 8px rgba(15,23,42,0.06);
 
-### Responsive layout
-- Breakpoints: 375(4col) · 428(4) · 768(8) · 1024(12) · 1280(12) · 1440(12) · 1728(12) · 1920(12)
-- Gutters 16→48px, margins 20→200px as viewport grows. Desktop container max-width ~928→1520px.
+filter: brightness(1.02);
+Do not make the button dramatically brighter.
+Active state
+transform: translateY(0);
 
-### Charts / DataViz
-- Series 1–8: blue/600, warning/600, purple/600, sea-blue/600, yellow/600, pink/600, green/600, grey/600
-- Structural: axis=grey/400, grid=grey/200, label=grey/700, bg=white, tooltip bg=grey/900 text=white, positive=success/600, negative=error/600
+box-shadow:
+  0 5px 14px rgba(91,124,255,0.18);
+Disabled / loading state
+For loading buttons such as:
+Searching...
+do not switch to a completely different pale blue.
+Keep the same gradient family and lower the opacity:
+opacity: 0.72;
+cursor: not-allowed;
+The loading state must still visually belong to the primary button system.
+Secondary buttons
+Buttons such as:
+	•	History
+	•	Back
+	•	Cancel
+	•	Secondary actions
+should use a translucent white surface:
+background: rgba(255,255,255,0.78);
 
-### Hard rules
-- Style with \`var(--ds-…)\` from \`app/arena-ds-tokens.css\` (imported in \`app/globals.css\`); do not delete or empty that file.
-- No generic purple-indigo AI themes, no Inter-as-brand, no random hex outside this palette.
-- Default interactive chrome: brand blue \`#1A73E8\`, grey text hierarchy, white surfaces, Poppins.
+border: 1px solid rgba(148,163,184,0.20);
 
+color: #475569;
 
-2) Add the history as a Button at the top don’t show in the right
+box-shadow:
+  0 4px 14px rgba(15,23,42,0.04);
+On hover:
+background: rgba(255,255,255,0.96);
+
+border-color: rgba(99,102,241,0.22);
+
+color: #5b6ef5;
+Small action chips
+For suggestion buttons such as:
+	•	C-Level of
+	•	CEO of
+	•	VP of
+	•	Managing Director of
+	•	Director of
+keep them neutral instead of using the full gradient.
+Use:
+background: rgba(255,255,255,0.76);
+border: 1px solid rgba(148,163,184,0.18);
+color: #475569;
+On hover, introduce only a slight blue-purple tint:
+background: rgba(238,242,255,0.92);
+border-color: rgba(99,102,241,0.20);
+color: #5b63d9;
+Button hierarchy
+The application should now use this visual hierarchy:
+Primary CTA
+Purple → blue → cyan gradient
+        ↓
+Secondary actions
+Translucent white
+        ↓
+Suggestion chips
+Soft neutral pills
+Do not use the same blue fill for every button.
+Important
+Apply the updated theme consistently to:
+	•	View analysis history
+	•	Search
+	•	Analyze
+	•	Searching...
+	•	History
+	•	Retry
+	•	Back buttons
+	•	Modal CTAs
+	•	Any other primary action buttons
+Do not only update one button.
+The complete application should now feel like one consistent visual system:
+soft ambient background + white/translucent surfaces + purple/blue/cyan primary actions + subtle shadows.
+
 
 
 

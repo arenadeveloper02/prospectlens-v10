@@ -1,13 +1,15 @@
 # prospectlens-v10
 
-Prospect Lens console restyled to the Arena Design System (brand blue #1A73E8, grey text hierarchy, white surfaces, DS tokens) with the History panel moved from a persistent right-side column to a top 'History' button that opens a slide-over drawer. Files changed: app/globals.css, app/chat-polish.css, app/console-polish.css, app/history-polish.css (color-only Arena DS token pass + new drawer/toggle styles), app/layout.tsx (render HistoryToggle instead of the fixed right-side HistoryPanel), components/HistoryToggle.tsx (new client component wrapping the existing HistoryPanel in a button-triggered drawer). prisma/schema.prisma is not present in the repository file index, so no schema file was touched.
+Button theme pass: primary CTAs now use a soft purple→blue→cyan gradient, secondary actions use translucent white surfaces, and suggestion chips use soft neutral pills. Files changed: (1) NEW app/button-theme.css — override stylesheet containing all new button rules (primary gradient for .send-btn/.cand-enrich-btn/.hist-btn-primary/.cand-linkedin with hover/active/disabled states; translucent-white secondary style for .hist-toggle/.hist-btn/.hist-refresh/.hist-close/.cand-tool-btn/.cand-select; neutral chip style for .chip/.qi-chip/.pick-btn). (2) app/layout.tsx — one added line importing './button-theme.css' LAST so the overrides win the cascade without touching any existing stylesheet rules. No other files, logic, or class names were modified. Note: no prisma/schema.prisma exists in the repository file index, so no schema file is echoed — fabricating one from scratch is forbidden and would risk data loss against the live database.
 
 ## Features
 
-- Arena DS token-based light theme (brand blue #1A73E8, grey hierarchy, white surfaces, Poppins)
-- History accessible via a top History button that opens a slide-over drawer
-- Identify leadership contacts and enrich verified emails
-- Session history with enrich + CSV export
+- Purple→blue→cyan gradient primary CTAs (Search, Enrich selected, primary history actions, LinkedIn pill)
+- Smooth hover lift, glow shadow, and brightness transition on primary buttons
+- Loading/disabled primary buttons keep the same gradient family at 0.72 opacity
+- Translucent white secondary buttons (History, Refresh, Close, toolbar actions) with blue-purple hover tint
+- Soft neutral suggestion chips (C-Level of, CEO of, VP of, examples, quick phrases) with subtle indigo hover
+- Clear three-tier button hierarchy: gradient CTA → translucent secondary → neutral chip
 
 ## Tech Stack
 

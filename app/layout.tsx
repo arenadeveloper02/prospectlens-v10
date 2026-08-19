@@ -5,6 +5,7 @@ import './globals.css';
 import './chat-polish.css';
 import './console-polish.css';
 import './history-polish.css';
+import './button-theme.css';
 import { ArenaEmailProvider } from '@/components/arena-email-provider';
 import { HistoryToggle } from '@/components/HistoryToggle';
 import { getArenaEmailId } from '@/lib/arena-email';
