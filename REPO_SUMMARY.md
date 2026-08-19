@@ -305,3 +305,14 @@ Constraints:
 * Do not add extra features, optimizations, or refactors that weren't requested.
 * If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
 * After implementing, list exactly which files and lines were changed, and why.
+
+
+model ChatMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  emailId        String?
+  role           String
+  content        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+}
