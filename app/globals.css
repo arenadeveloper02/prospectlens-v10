@@ -55,7 +55,6 @@ body {
   height: 420px;
   top: -140px;
   left: -120px;
-  background: rgba(26, 115, 232, 0.12);
 }
 
 .glow-purple {
@@ -63,7 +62,6 @@ body {
   height: 380px;
   top: 10%;
   right: -140px;
-  background: rgba(179, 100, 215, 0.08);
 }
 
 .glow-teal {
@@ -71,7 +69,6 @@ body {
   height: 460px;
   bottom: -180px;
   left: 30%;
-  background: rgba(0, 167, 214, 0.10);
 }
 
 /* ---------- App shell ---------- */
