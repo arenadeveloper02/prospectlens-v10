@@ -15,8 +15,9 @@ export const maxDuration = 60;
  *   body:    { "email": "<session email>", "stream": false, "selectedOutputs": ["table1.rows"] }
  *
  * The response nests rows at output.rows[] — each row's `data` carries
- * { message, candidates_json (JSON string), conversation_id, email,
- *   updated_at }. The session email comes from the Arena cookie set by
+ * { message, candidates_json, selected_details_json, enrich_status,
+ *   conversation_id, email, updated_at }. selected_details_json[].enrich_status
+ * of "enriched" marks that contact as already enriched (checkbox disabled).
  * middleware — never from the client body.
  */
 const DEFAULT_HISTORY_URL =
@@ -37,6 +38,19 @@ function asStr(v: unknown): string {
   if (typeof v === 'string') return v.trim();
   if (typeof v === 'number' && Number.isFinite(v)) return String(v);
   return '';
+}
+
+function readCandidateStatus(rec: Record<string, unknown>): string {
+  const raw = rec['status'] ?? rec['enrich_status'] ?? rec['enrichment_status'] ?? rec['enrichmentStatus'];
+  if (typeof raw === 'string') return raw.trim().toLowerCase();
+  if (isRecord(raw)) {
+    return asStr(raw['value'] ?? raw['status'] ?? raw['label']).toLowerCase();
+  }
+  return asStr(raw).toLowerCase();
+}
+
+function isEnrichedStatus(status: string): boolean {
+  return status === 'enriched' || status.includes('enriched');
 }
 
 /**
@@ -63,12 +77,13 @@ function toHistoryContact(rec: unknown, index: number): ProspectContact | null {
   const emailRaw =
     asStr(rec['work_email']) || asStr(rec['personal_email']) || asStr(rec['email']);
   const email = emailRaw.includes('@') ? emailRaw : '';
-  const statusRaw = asStr(rec['status']).toLowerCase();
-  const status: ProspectStatus =
-    email || statusRaw === 'enriched'
-      ? 'enriched'
-      : statusRaw === 'no_email'
-        ? 'no_email'
+  const statusRaw = readCandidateStatus(rec);
+  const status: ProspectStatus = isEnrichedStatus(statusRaw)
+    ? 'enriched'
+    : statusRaw === 'no_email' || statusRaw === 'no_email_found'
+      ? 'no_email'
+      : email
+        ? 'enriched'
         : 'identified';
   return {
     id,
@@ -88,8 +103,17 @@ function toHistoryContact(rec: unknown, index: number): ProspectContact | null {
 /** Coerces a value that may be an array OR a JSON-string-encoded array. */
 function toArrayMaybeJson(value: unknown): unknown[] {
   let v: unknown = value;
-  if (typeof v === 'string') v = parseJsonLoose(v);
-  return Array.isArray(v) ? v : [];
+  for (let i = 0; i < 3 && typeof v === 'string'; i++) {
+    v = parseJsonLoose(v) ?? v;
+  }
+  if (Array.isArray(v)) return v;
+  if (isRecord(v)) {
+    const nested = v['candidates'] ?? v['contacts'] ?? v['candidates_json'];
+    if (nested !== undefined && nested !== v) return toArrayMaybeJson(nested);
+    const vals = Object.values(v);
+    if (vals.length > 0 && vals.every((item) => isRecord(item))) return vals;
+  }
+  return [];
 }
 
 /**
@@ -147,14 +171,63 @@ function toSession(row: Record<string, unknown>, index: number): HistorySession 
     asStr(data['last_updated']) ||
     asStr(row['updatedAt']) ||
     asStr(row['updated_at']);
-  const candidatesRaw = toArrayMaybeJson(data['candidates_json']);
+  const candidatesRaw = toArrayMaybeJson(
+    data['candidates_json'] ?? data['candidates'] ?? data['contacts'],
+  );
+  const selectedDetails = toArrayMaybeJson(data['selected_details_json']);
   const contacts: ProspectContact[] = [];
   candidatesRaw.forEach((c, i) => {
     const contact = toHistoryContact(c, i);
     if (contact) contacts.push(contact);
   });
-  if (!conversationId && contacts.length === 0 && !message) return null;
-  return { rowId, conversationId, email, message, updatedAt, contacts };
+  // If identify candidates are missing, still surface people from selected_details_json.
+  if (contacts.length === 0) {
+    selectedDetails.forEach((c, i) => {
+      const contact = toHistoryContact(c, i);
+      if (contact) contacts.push(contact);
+    });
+  }
+
+  const detailsById = new Map<number, Record<string, unknown>>();
+  const detailsByName = new Map<string, Record<string, unknown>>();
+  for (const item of selectedDetails) {
+    if (!isRecord(item)) continue;
+    const idRaw = item['id'];
+    if (typeof idRaw === 'number' && Number.isFinite(idRaw) && idRaw >= 1) {
+      detailsById.set(Math.floor(idRaw), item);
+    }
+    const name = (asStr(item['name']) || asStr(item['full_name'])).toLowerCase();
+    if (name) detailsByName.set(name, item);
+  }
+
+  const rowSelectedName = asStr(data['selected_name']).toLowerCase();
+  const rowEnrichStatus = readCandidateStatus(data);
+  const rowWorkEmail = asStr(data['work_email']);
+
+  const merged = contacts.map((c) => {
+    const hit = detailsById.get(c.id) ?? detailsByName.get(c.full_name.toLowerCase());
+    const detailStatus = hit ? readCandidateStatus(hit) : '';
+    const detailEmailRaw =
+      (hit && (asStr(hit['work_email']) || asStr(hit['personal_email']) || asStr(hit['email']))) ||
+      '';
+    const detailEmail = detailEmailRaw.includes('@') ? detailEmailRaw : '';
+    const nameMatchesRow = Boolean(rowSelectedName) && c.full_name.toLowerCase() === rowSelectedName;
+    const enriched =
+      isEnrichedStatus(detailStatus) ||
+      (isEnrichedStatus(rowEnrichStatus) && (nameMatchesRow || (contacts.length === 1 && !hit)));
+    const email =
+      detailEmail ||
+      c.work_email ||
+      (enriched && nameMatchesRow && rowWorkEmail.includes('@') ? rowWorkEmail : '');
+    return {
+      ...c,
+      work_email: email,
+      status: (enriched ? 'enriched' : c.status) as ProspectStatus,
+    };
+  });
+
+  if (!conversationId && merged.length === 0 && !message) return null;
+  return { rowId, conversationId, email, message, updatedAt, contacts: merged };
 }
 
 export async function GET(request: NextRequest) {
@@ -203,6 +276,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    console.log('PL history raw', raw);
     const data = parseJsonLoose(raw) ?? {};
     const rows = extractRows(data);
 

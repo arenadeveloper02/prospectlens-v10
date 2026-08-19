@@ -112,8 +112,8 @@
   }
 }
 
-/* ---------- Panel (unchanged class names, now inside the drawer) ---------- */
-.history-panel {
+/* ---------- Panel (drawer variant; inline card styles live in agent-ui.css) ---------- */
+.hist-drawer .history-panel {
   width: 100%;
   height: 100%;
   overflow-y: auto;
@@ -302,6 +302,18 @@
   flex-shrink: 0;
   accent-color: var(--ds-color-interactive-default, #1A73E8);
   cursor: pointer;
+}
+
+.hist-checkbox:disabled {
+  cursor: default;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.hist-contact-locked {
+  cursor: default;
+  opacity: 0.78;
+  pointer-events: none;
 }
 
 .hist-check-done {

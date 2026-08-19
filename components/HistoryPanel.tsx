@@ -17,6 +17,10 @@ interface PanelSession {
   contacts: ConsoleContact[];
 }
 
+function isEnrichedContact(c: { status?: string }): boolean {
+  return (c.status || '').toLowerCase().includes('enriched');
+}
+
 function toConsoleContact(p: ProspectContact): ConsoleContact {
   return {
     id: String(p.id),
@@ -39,12 +43,37 @@ function toConsoleContact(p: ProspectContact): ConsoleContact {
 function formatWhen(value: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString(undefined, {
-    month: 'short',
+  return d.toLocaleString('en-GB', {
     day: 'numeric',
+    month: 'short',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   });
+}
+
+function sessionTitle(s: PanelSession): string {
+  const companies = [...new Set(s.contacts.map((c) => c.company_name).filter(Boolean))];
+  if (companies.length === 1) return companies[0];
+  if (companies.length > 1) return companies.slice(0, 2).join(', ');
+  const msg = s.message.trim().split('\n')[0] || '';
+  if (msg) return msg.length > 72 ? `${msg.slice(0, 69)}…` : msg;
+  return 'Search session';
+}
+
+function sessionBadge(s: PanelSession): string {
+  const n = s.contacts.length;
+  if (n === 0) return 'Search';
+  return `${n} contact${n === 1 ? '' : 's'}`;
+}
+
+function sessionCategory(s: PanelSession): string {
+  const companies = [...new Set(s.contacts.map((c) => c.company_name).filter(Boolean))];
+  // Avoid repeating the same company name already shown as the row title.
+  if (companies.length === 1) return '';
+  if (s.contacts.some((c) => c.work_email)) return 'Enriched';
+  return 'Leadership';
 }
 
 const CSV_COLS = [
@@ -121,7 +150,8 @@ export function HistoryPanel() {
     void load();
   }, [load]);
 
-  const toggle = (rowId: string, contactId: string) => {
+  const toggle = (rowId: string, contactId: string, contact: ConsoleContact) => {
+    if (isEnrichedContact(contact)) return;
     setSelected((prev) => {
       const cur = prev[rowId] ?? [];
       return {
@@ -141,7 +171,7 @@ export function HistoryPanel() {
       // Map selected contact ids -> their 1-based card position — the SAME
       // contract the console page uses.
       const picks = picked
-        .map((id) => s.contacts.findIndex((c) => c.id === id))
+        .map((id) => s.contacts.findIndex((c) => c.id === id && !isEnrichedContact(c)))
         .filter((i) => i >= 0)
         .map((i) => i + 1)
         .sort((a, b) => a - b);
@@ -205,15 +235,12 @@ export function HistoryPanel() {
   };
 
   return (
-    <aside className="history-panel" aria-label="Search history">
-      <div className="hist-head">
-        <div>
-          <div className="hist-title">History</div>
-          <div className="hist-sub">Your past searches</div>
-        </div>
+    <aside className="history-panel agent-card" aria-label="Search history">
+      <div className="hist-head agent-card-head">
+        <span className="agent-kicker">Previous runs</span>
         <button
           type="button"
-          className="hist-refresh"
+          className="hist-refresh agent-ghost"
           onClick={() => void load()}
           disabled={loading}
         >
@@ -233,40 +260,53 @@ export function HistoryPanel() {
           const open = openId === s.rowId;
           const picked = selected[s.rowId] ?? [];
           const busy = busyId === s.rowId;
-          const selectable = s.contacts.filter((c) => !c.work_email);
+          const selectable = s.contacts.filter((c) => !isEnrichedContact(c));
           return (
             <div key={s.rowId} className={`hist-card${open ? ' hist-card-open' : ''}`}>
-              <button
-                type="button"
-                className="hist-card-head"
-                onClick={() => setOpenId(open ? '' : s.rowId)}
-                aria-expanded={open}
-              >
-                <span className="hist-time">{formatWhen(s.updatedAt) || 'Session'}</span>
-                <span className="hist-badge">
-                  {s.contacts.length} contact{s.contacts.length === 1 ? '' : 's'}
-                </span>
-              </button>
-              {s.message ? <div className="hist-msg">{s.message}</div> : null}
+              <div className="hist-row">
+                <div className="hist-row-main">
+                  <div className="hist-row-title">{sessionTitle(s)}</div>
+                  <div className="hist-row-meta">
+                    <span className="agent-pill">{sessionBadge(s)}</span>
+                    {formatWhen(s.updatedAt) ? (
+                      <span className="agent-date">{formatWhen(s.updatedAt)}</span>
+                    ) : null}
+                    {sessionCategory(s) ? (
+                      <span className="agent-cat">{sessionCategory(s)}</span>
+                    ) : null}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="agent-ghost"
+                  onClick={() => setOpenId(open ? '' : s.rowId)}
+                  aria-expanded={open}
+                >
+                  {open ? 'Hide' : 'View'}
+                </button>
+              </div>
 
               {open && s.contacts.length > 0 ? (
                 <div className="hist-contacts">
-                  {s.contacts.map((c) => (
-                    <label key={c.id} className="hist-contact">
-                      {c.work_email ? (
-                        <span className="hist-check-done" aria-hidden="true">
-                          ✓
-                        </span>
-                      ) : (
-                        <input
-                          type="checkbox"
-                          className="hist-checkbox"
-                          checked={picked.includes(c.id)}
-                          disabled={busy}
-                          onChange={() => toggle(s.rowId, c.id)}
-                          aria-label={`Select ${c.full_name}`}
-                        />
-                      )}
+                  {s.contacts.map((c) => {
+                    const enriched = isEnrichedContact(c);
+                    return (
+                    <label
+                      key={c.id}
+                      className={`hist-contact${enriched ? ' hist-contact-locked' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="hist-checkbox"
+                        checked={enriched || picked.includes(c.id)}
+                        disabled={busy || enriched}
+                        onChange={() => toggle(s.rowId, c.id, c)}
+                        aria-label={
+                          enriched
+                            ? `${c.full_name} already enriched`
+                            : `Select ${c.full_name}`
+                        }
+                      />
                       <span className="hist-contact-main">
                         <span className="hist-contact-name">{c.full_name}</span>
                         {(c.title || c.company_name) && (
@@ -283,7 +323,8 @@ export function HistoryPanel() {
                         ) : null}
                       </span>
                     </label>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : null}
 

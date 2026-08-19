@@ -1,0 +1,750 @@
+/* Article-enhancer-style agent UI — light, centered, pill toggle, white cards.
+   Imported last so these rules win over the older console / button-theme pass. */
+
+:root {
+  --agent-blue: #3b82f6;
+  --agent-blue-hover: #2563eb;
+  --agent-text: #1f2937;
+  --agent-muted: #6b7280;
+  --agent-faint: #9ca3af;
+  --agent-line: #e5e7eb;
+  --agent-bg: #f5f6f8;
+  --agent-card: #ffffff;
+}
+
+html,
+body {
+  background: var(--agent-bg) !important;
+  background-image: none !important;
+}
+
+body {
+  color: var(--agent-text);
+}
+
+.glow,
+.particle-canvas {
+  display: none;
+}
+
+.console-shell {
+  display: block;
+  min-height: 100dvh;
+}
+
+.console-main {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Hide the old fixed History button if it is ever mounted. */
+.hist-toggle,
+.hist-overlay,
+.hist-drawer,
+.hist-close {
+  display: none !important;
+}
+
+/* ---------- Page shell ---------- */
+.agent-page {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 48px 24px 72px;
+}
+
+.agent-title {
+  margin: 0;
+  text-align: center;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--agent-text);
+}
+
+.agent-sub {
+  margin: 12px auto 28px;
+  max-width: 560px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.65;
+  color: var(--agent-muted);
+}
+
+/* ---------- Generator / History pill ---------- */
+.view-toggle {
+  display: flex;
+  width: fit-content;
+  margin: 0 auto 32px;
+  padding: 4px;
+  background: var(--agent-card);
+  border-radius: 9999px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+}
+
+.view-toggle-btn {
+  min-width: 118px;
+  height: 40px;
+  padding: 0 28px;
+  border: none;
+  border-radius: 9999px;
+  background: transparent;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.view-toggle-btn.is-active {
+  background: var(--agent-blue);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.28);
+}
+
+.view-toggle-btn:not(.is-active):hover {
+  color: var(--agent-text);
+}
+
+/* ---------- Cards ---------- */
+.agent-card {
+  background: var(--agent-card);
+  border: 1px solid #eef0f3;
+  border-radius: 16px;
+  padding: 28px 32px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.agent-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.agent-field {
+  margin-top: 20px;
+}
+
+.agent-field:first-child {
+  margin-top: 0;
+}
+
+.agent-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.agent-input,
+.agent-select,
+.composer-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--agent-line);
+  border-radius: 10px;
+  background: var(--agent-card);
+  color: var(--agent-text);
+  font-size: 14.5px;
+  font-family: inherit;
+  outline: none;
+  box-shadow: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.agent-input::placeholder,
+.composer-input::placeholder {
+  color: #c0c4cc;
+}
+
+.agent-input:focus,
+.agent-select:focus,
+.composer-input:focus {
+  border-color: var(--agent-blue);
+  box-shadow: 0 0 0 3px rgba(29, 117, 232, 0.15);
+}
+
+.agent-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 14px;
+  border: 1px solid var(--agent-line);
+  border-radius: 10px;
+  background: var(--agent-card);
+  color: var(--agent-text);
+  font-size: 14.5px;
+  font-family: inherit;
+  line-height: 1.55;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.agent-textarea::placeholder {
+  color: #c0c4cc;
+}
+
+.agent-textarea:focus {
+  border-color: var(--agent-blue);
+  box-shadow: 0 0 0 3px rgba(29, 117, 232, 0.15);
+}
+
+.agent-select {
+  width: min(100%, 280px);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  color: var(--agent-muted);
+  cursor: pointer;
+}
+
+.agent-select.has-value {
+  color: var(--agent-text);
+}
+
+.agent-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.agent-chip,
+.qi-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--agent-line);
+  background: #fff;
+  color: var(--agent-muted);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+}
+
+.agent-chip:hover,
+.qi-chip:hover {
+  border-color: #c9d4ea;
+  background: #f3f8fe;
+  color: var(--agent-blue);
+  box-shadow: none;
+  transform: none;
+}
+
+.agent-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 28px;
+}
+
+.agent-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.agent-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--agent-faint);
+}
+
+/* ---------- Buttons ---------- */
+.agent-primary,
+.send-btn,
+.cand-enrich-btn,
+.hist-btn-primary,
+.md-btn-primary,
+.cand-linkedin {
+  height: 42px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 9999px;
+  background: var(--agent-blue) !important;
+  color: #ffffff !important;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.28) !important;
+  filter: none !important;
+  transform: none !important;
+  text-decoration: none;
+}
+
+.send-btn {
+  height: 52px;
+  padding: 0 26px;
+  font-size: 14.5px;
+  flex-shrink: 0;
+}
+
+.agent-primary:hover:not(:disabled),
+.send-btn:hover:not(:disabled),
+.cand-enrich-btn:hover:not(:disabled),
+.hist-btn-primary:hover:not(:disabled),
+.md-btn-primary:hover,
+.cand-linkedin:hover {
+  background: var(--agent-blue-hover) !important;
+  color: #ffffff !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+.agent-primary:disabled,
+.cand-enrich-btn:disabled,
+.hist-btn-primary:disabled,
+.send-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+  background: var(--agent-blue) !important;
+}
+
+.agent-ghost,
+.md-btn,
+.hist-refresh,
+.hist-btn:not(.hist-btn-primary) {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--agent-line);
+  border-radius: 8px;
+  background: #fff !important;
+  color: var(--agent-muted) !important;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: none !important;
+}
+
+.agent-ghost:hover:not(:disabled),
+.md-btn:hover,
+.hist-refresh:hover:not(:disabled),
+.hist-btn:not(.hist-btn-primary):hover:not(:disabled) {
+  border-color: #d1d5db;
+  background: #fafafa !important;
+  color: var(--agent-text) !important;
+}
+
+.agent-ghost:disabled,
+.hist-refresh:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- Alerts / typing ---------- */
+.agent-alert {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.agent-alert-error {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.agent-alert-info {
+  border: 1px solid var(--agent-line);
+  background: #f9fafb;
+  color: var(--agent-muted);
+}
+
+.agent-page .typing {
+  margin-top: 16px;
+  border-radius: 10px;
+}
+
+/* ---------- Results list ---------- */
+.agent-result-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-result-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 0;
+  border-top: 1px solid #f0f1f3;
+}
+
+.agent-result-list .agent-result-row:first-of-type {
+  border-top: 1px solid #f0f1f3;
+  margin-top: 8px;
+}
+
+.agent-result-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.agent-result-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--agent-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.agent-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--agent-blue);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.agent-pill-muted {
+  background: #e8f1fd;
+  color: var(--agent-blue);
+}
+
+.agent-date {
+  font-size: 13px;
+  color: var(--agent-faint);
+}
+
+.agent-cat {
+  font-size: 13px;
+  color: var(--agent-faint);
+}
+
+.agent-result-row .avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+
+.agent-result-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.agent-result-sub {
+  font-size: 13px;
+  color: var(--agent-muted);
+}
+
+.agent-email {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #166534;
+  overflow-wrap: anywhere;
+}
+
+.agent-noemail {
+  font-size: 12px;
+  font-style: italic;
+  color: #b45309;
+}
+
+/* ---------- History panel (full-width card, not a drawer) ---------- */
+.history-panel {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* Keep agent-card padding/background — earlier drawer polish zeroed these
+   and clipped the "Previous runs" kicker against the card edge. */
+.history-panel.agent-card {
+  padding: 28px 32px;
+  background: var(--agent-card);
+}
+
+.history-panel .hist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 0 14px;
+  margin: 0 0 4px;
+  border: none;
+  border-bottom: 1px solid #f0f1f3;
+}
+
+.history-panel .hist-title,
+.history-panel .hist-sub {
+  display: none;
+}
+
+.history-panel .hist-refresh {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.hist-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.hist-card {
+  padding: 18px 0;
+  border: none;
+  border-top: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.hist-card + .hist-card {
+  border-top: 1px solid #f0f1f3;
+}
+
+.hist-card:hover {
+  border-color: #f0f1f3;
+}
+
+.hist-card-open {
+  border-color: #f0f1f3;
+  box-shadow: none;
+}
+
+.hist-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  width: 100%;
+}
+
+.hist-row > .agent-ghost {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.hist-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.hist-row-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--agent-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hist-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.hist-card-head {
+  display: none;
+}
+
+.hist-msg {
+  display: none;
+}
+
+.hist-contacts {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hist-contact {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--agent-line);
+  background: #f9fafb;
+  cursor: pointer;
+}
+
+.hist-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.hist-actions .hist-btn-primary {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.hist-empty,
+.hist-error,
+.hist-notice {
+  margin: 12px 0 0;
+  padding: 14px 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.hist-empty {
+  color: var(--agent-muted);
+  font-size: 14px;
+}
+
+/* ---------- Leadership Finder search layout ---------- */
+.finder .composer {
+  display: flex;
+  gap: 10px;
+  padding: 0;
+  align-items: stretch;
+}
+
+.finder .composer-input {
+  flex: 1;
+  height: 52px;
+  padding: 0 20px;
+  border-radius: 16px;
+  border: 1px solid var(--agent-line);
+  background: #fff;
+  font-size: 14.5px;
+}
+
+.finder .quick-inserts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.finder .qi-chip {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--agent-line);
+  background: #fff;
+  color: #4b5563;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+}
+
+.finder .qi-chip:hover {
+  border-color: #c9d4ea;
+  background: #f3f8fe;
+  color: var(--agent-blue);
+  box-shadow: none;
+  transform: none;
+}
+
+.finder .welcome {
+  display: block;
+  margin: 16px 0 0;
+  padding: 22px 24px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(26, 115, 232, 0.06), rgba(0, 167, 214, 0.04));
+  border: 1px solid var(--agent-line);
+  box-shadow: none;
+}
+
+.finder .welcome-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--agent-text);
+  margin-bottom: 8px;
+}
+
+.finder .welcome p {
+  color: var(--agent-muted);
+  margin: 0 0 12px;
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+.finder .welcome-steps {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--agent-muted);
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.agent-page .app-header {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .agent-page {
+    padding: 28px 16px 48px;
+  }
+
+  .agent-title {
+    font-size: 24px;
+  }
+
+  .agent-card {
+    padding: 20px 18px;
+  }
+
+  .agent-select {
+    width: 100%;
+  }
+
+  .agent-card-actions {
+    justify-content: stretch;
+  }
+
+  .finder .composer {
+    flex-direction: column;
+  }
+
+  .finder .send-btn {
+    width: 100%;
+  }
+
+  .hist-row {
+    align-items: flex-start;
+  }
+}

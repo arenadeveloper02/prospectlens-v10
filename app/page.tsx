@@ -219,28 +219,14 @@ export default function HomePage() {
     URL.revokeObjectURL(url);
   }
 
-  const pendingIds = contacts.filter((c) => !c.work_email).map((c) => c.id);
+  const pendingIds = contacts
+    .filter((c) => c.status !== 'enriched' && !c.work_email)
+    .map((c) => c.id);
   const hasResults = contacts.length > 0;
 
   return (
-    <div className="app" style={{ height: 'auto', minHeight: '100dvh' }}>
-      <div className="glow glow-blue" />
-      <div className="glow glow-purple" />
-      <div className="glow glow-teal" />
-
-      <header className="app-header">
-        <div className="brand-mark">PL</div>
-        <div>
-          <div className="brand-title">Prospect Lens Console</div>
-          <div className="brand-sub">Identify leadership contacts, then enrich verified emails</div>
-        </div>
-        <div className="header-status">
-          <span className="status-dot" />
-          Online
-        </div>
-      </header>
-
-      <form className="composer" style={{ paddingTop: 16 }} onSubmit={runIdentify}>
+    <div className="finder">
+      <form className="composer" onSubmit={runIdentify}>
         <input
           id={SEARCH_INPUT_ID}
           aria-label="Search for a role and company"
@@ -307,225 +293,109 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      {error ? (
-        <div
-          style={{
-            margin: '0 4px 12px',
-            padding: '12px 16px',
-            borderRadius: 12,
-            border: '1px solid rgba(220, 38, 38, 0.30)',
-            background: 'rgba(254, 226, 226, 0.60)',
-            color: '#b91c1c',
-            fontSize: 13.5,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
-
-      {message ? (
-        <div
-          style={{
-            margin: '0 4px 12px',
-            padding: '12px 16px',
-            borderRadius: 12,
-            border: '1px solid rgba(15, 23, 42, 0.08)',
-            background: '#ffffff',
-            color: 'rgba(15, 23, 42, 0.62)',
-            fontSize: 13.5,
-          }}
-        >
-          {message}
-        </div>
-      ) : null}
+      {error ? <div className="agent-alert agent-alert-error">{error}</div> : null}
+      {message ? <div className="agent-alert agent-alert-info">{message}</div> : null}
 
       {searching ? (
-        <div className="typing" style={{ margin: '0 4px 12px' }}>
+        <div className="typing" style={{ marginTop: 12 }}>
           <div className="typing-dots">
             <span />
             <span />
             <span />
           </div>
-          <span className="typing-text">Searching for contacts — deep searches can take a few minutes…</span>
+          <span className="typing-text">
+            Searching for contacts — deep searches can take a few minutes…
+          </span>
         </div>
       ) : null}
 
       {hasResults ? (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 8,
-            padding: '4px 4px 12px',
-          }}
-        >
-          <span className="pick-label">
+        <div className="agent-card" style={{ marginTop: 16 }}>
+          <div className="agent-card-head">
+            <span className="agent-kicker">Results</span>
+            <div className="agent-result-actions">
+              <button type="button" className="agent-ghost" onClick={exportCsv}>
+                Export CSV
+              </button>
+              <button
+                type="button"
+                className="send-btn"
+                style={{ height: 32, padding: '0 16px', fontSize: 13 }}
+                disabled={enrichingAll || pendingIds.length === 0}
+                onClick={() => enrich(pendingIds)}
+              >
+                {enrichingAll ? 'Enriching…' : `Enrich all (${pendingIds.length})`}
+              </button>
+            </div>
+          </div>
+          <div className="agent-date" style={{ marginBottom: 4 }}>
             {contacts.length} contact{contacts.length === 1 ? '' : 's'}
             {counts.enriched > 0 ? ` · ${counts.enriched} enriched` : ''}
             {counts.unmatched > 0 ? ` · ${counts.unmatched} without email` : ''}
-          </span>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button type="button" className="md-btn" onClick={exportCsv}>
-              Export CSV
-            </button>
-            <button
-              type="button"
-              className="send-btn"
-              style={{ height: 34, padding: '0 16px', fontSize: 13 }}
-              disabled={enrichingAll || pendingIds.length === 0}
-              onClick={() => enrich(pendingIds)}
-            >
-              {enrichingAll ? 'Enriching…' : `Enrich all (${pendingIds.length})`}
-            </button>
           </div>
-        </div>
-      ) : null}
 
-      {hasResults ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '0 4px 28px' }}>
-          {contacts.map((c) => {
-            const busy = Boolean(rowBusy[c.id]);
-            const enrichedRow = Boolean(c.work_email);
-            const noEmail =
-              !c.work_email && (c.status === 'no_email' || c.status === 'no_email_found');
-            return (
-              <div
-                key={c.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '14px 16px',
-                  borderRadius: 14,
-                  border: '1px solid rgba(15, 23, 42, 0.08)',
-                  background: '#ffffff',
-                  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.06)',
-                }}
-              >
-                <Avatar c={c} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
-                  <span style={{ fontSize: 14.5, fontWeight: 600, color: '#0F172A' }}>
-                    {c.full_name}
-                  </span>
-                  {c.title || c.company_name ? (
-                    <span style={{ fontSize: 13, color: 'rgba(15, 23, 42, 0.62)' }}>
-                      {c.title}
-                      {c.title && c.company_name ? ' · ' : ''}
-                      {c.company_name}
-                    </span>
-                  ) : null}
-                  {c.location ? (
-                    <span style={{ fontSize: 12, color: 'rgba(15, 23, 42, 0.40)' }}>{c.location}</span>
-                  ) : null}
-                  {c.seniority || c.confidence ? (
-                    <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
-                      {c.seniority ? (
-                        <span
-                          style={{
-                            padding: '1px 8px',
-                            borderRadius: 999,
-                            fontSize: 10.5,
-                            fontWeight: 500,
-                            border: '1px solid rgba(179, 100, 215, 0.40)',
-                            background: 'rgba(179, 100, 215, 0.10)',
-                            color: '#7e3ba3',
-                          }}
-                        >
-                          {c.seniority}
+          <div className="agent-result-list">
+            {contacts.map((c) => {
+              const busy = Boolean(rowBusy[c.id]);
+              const enrichedRow = c.status === 'enriched' || Boolean(c.work_email);
+              const noEmail =
+                !c.work_email && (c.status === 'no_email' || c.status === 'no_email_found');
+              return (
+                <div key={c.id} className="agent-result-row">
+                  <Avatar c={c} />
+                  <div className="agent-result-body">
+                    <span className="agent-result-title">{c.full_name}</span>
+                    <div className="agent-result-meta">
+                      {c.seniority ? <span className="agent-pill">{c.seniority}</span> : null}
+                      {c.title || c.company_name ? (
+                        <span className="agent-date">
+                          {c.title}
+                          {c.title && c.company_name ? ' · ' : ''}
+                          {c.company_name}
                         </span>
                       ) : null}
-                      {c.confidence ? (
-                        <span
-                          style={{
-                            padding: '1px 8px',
-                            borderRadius: 999,
-                            fontSize: 10.5,
-                            fontWeight: 500,
-                            border: '1px solid rgba(22, 163, 74, 0.35)',
-                            background: 'rgba(22, 163, 74, 0.10)',
-                            color: '#166534',
-                          }}
-                        >
-                          {c.confidence} match
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : null}
-                  {c.work_email ? (
-                    <span
-                      style={{
-                        marginTop: 4,
-                        fontSize: 12.5,
-                        fontWeight: 500,
-                        color: '#166534',
-                        overflowWrap: 'anywhere',
-                      }}
-                    >
-                      {c.work_email}
-                      {c.email_status ? ` · ${c.email_status}` : ''}
-                    </span>
-                  ) : noEmail ? (
-                    <span style={{ marginTop: 4, fontSize: 12, fontStyle: 'italic', color: '#b45309' }}>
-                      No email found
-                    </span>
-                  ) : null}
+                      {c.location ? <span className="agent-cat">{c.location}</span> : null}
+                    </div>
+                    {c.work_email ? (
+                      <span className="agent-email">
+                        {c.work_email}
+                        {c.email_status ? ` · ${c.email_status}` : ''}
+                      </span>
+                    ) : noEmail ? (
+                      <span className="agent-noemail">No email found</span>
+                    ) : null}
+                  </div>
+                  <div className="agent-result-actions">
+                    {c.linkedin_url ? (
+                      <a
+                        href={c.linkedin_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="agent-ghost"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          textDecoration: 'none',
+                        }}
+                      >
+                        LinkedIn
+                      </a>
+                    ) : null}
+                    {!enrichedRow ? (
+                      <button
+                        type="button"
+                        className="agent-ghost"
+                        disabled={busy || enrichingAll}
+                        onClick={() => enrich([c.id], c.id)}
+                      >
+                        {busy ? 'Enriching…' : 'Enrich'}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-end',
-                    gap: 8,
-                    flexShrink: 0,
-                  }}
-                >
-                  {c.linkedin_url ? (
-                    <a
-                      href={c.linkedin_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: 999,
-                        background: 'linear-gradient(135deg, #7C6CFF, #4DB8FF)',
-                        color: '#ffffff',
-                        fontSize: 12,
-                        fontWeight: 500,
-                        textDecoration: 'none',
-                        whiteSpace: 'nowrap',
-                        boxShadow: '0 2px 8px rgba(124, 108, 255, 0.25)',
-                      }}
-                    >
-                      LinkedIn
-                    </a>
-                  ) : null}
-                  {!enrichedRow ? (
-                    <button
-                      type="button"
-                      disabled={busy || enrichingAll}
-                      onClick={() => enrich([c.id], c.id)}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: 999,
-                        border: '1px solid rgba(124, 108, 255, 0.45)',
-                        background: 'rgba(124, 108, 255, 0.08)',
-                        color: '#5b4fd6',
-                        fontSize: 12,
-                        fontWeight: 500,
-                        fontFamily: 'inherit',
-                        cursor: busy || enrichingAll ? 'default' : 'pointer',
-                        opacity: busy ? 0.6 : 1,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {busy ? 'Enriching…' : 'Enrich'}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       ) : null}
     </div>

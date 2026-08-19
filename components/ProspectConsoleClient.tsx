@@ -457,12 +457,13 @@ export default function ProspectConsoleClient() {
                 >
                   <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center pt-0.5">
                     {c.status === 'enriched' ? (
-                      <span
-                        className="flex h-5 w-5 items-center justify-center rounded-full bg-[#3BC884] text-[11px] font-bold text-white"
-                        aria-hidden="true"
-                      >
-                        ✓
-                      </span>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[#1A73E8]"
+                        checked
+                        disabled
+                        aria-label={`${c.full_name} already enriched`}
+                      />
                     ) : (
                       <input
                         type="checkbox"
